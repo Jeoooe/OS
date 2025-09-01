@@ -3,12 +3,15 @@ SRC_DIR:=./src
 
 SOURCES:= $(SRC_DIR)/mbr.asm
 
-$(BUILD)/master.img: $(BUILD)/mbr.bin
+BOOT_ASM:= $(SRC_DIR)/boot/loader.asm
+
+$(BUILD)/master.img: $(BUILD)/boot/mbr.bin $(BUILD)/boot/loader.bin 
 	yes | bximage -q -func=create -hd=10 -imgmode="flat" -sectsize=512 $@
 	dd if=$< of=$@ bs=512 count=1 conv=notrunc
+	dd if=$(BUILD)/boot/loader.bin of=$@ bs=512 count=1 seek=2 conv=notrunc
 
-$(BUILD)/mbr.bin: $(SRC_DIR)/mbr.asm
-	mkdir -p $(BUILD)
+$(BUILD)/boot/%.bin: $(SRC_DIR)/boot/%.asm
+	mkdir -p $(BUILD)/boot
 	nasm -f bin -o $@ $<
 
 
