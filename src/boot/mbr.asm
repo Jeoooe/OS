@@ -1,7 +1,8 @@
+[bits 16]
 ;宏
-LOADER_START_LBA equ 0x2        ;loader起始扇区
+LOADER_START_SECTOR equ 0x2        ;loader起始扇区
 LOADER_TARGET_MEMORY equ 0x900  ;loader运行目标内存地址
-LOADER_SECOTRS equ 1
+LOADER_SECOTRS equ 4
 
 section mbr vstart=0x7c00
     mov ax,cs 
@@ -20,6 +21,8 @@ section mbr vstart=0x7c00
     mov dh, 0x18
     int 0x10
 
+    
+
     mov ax, 0xb800
     mov gs, ax
     mov byte [gs:0x00], 'M'
@@ -30,7 +33,7 @@ section mbr vstart=0x7c00
     mov byte [gs:0x05], 0xa4
 
     ;读取loader
-    mov eax, LOADER_START_LBA
+    mov eax, LOADER_START_SECTOR
     mov bx, LOADER_TARGET_MEMORY
     mov cx, LOADER_SECOTRS
     call read_disk_16
