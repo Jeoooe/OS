@@ -55,8 +55,15 @@ protection_mode:
     mov gs, eax
     mov ss, eax
     mov esp, LOADER_BASE_ADDR
-    ;分页机制
 
+    ;加载内核文件
+    mov eax, KERNEL_BIN_SECTOR_START
+    mov ebx, KERNEL_BIN_BASE_ADDR
+    mov ecx, KERNEL_BIN_SECTOR_COUNT
+    call read_disk_32
+    
+
+    ;开启分页机制
     call setup_page
     ;赋值cr3,并置cr0的PG位
     mov eax, PAGE_DIR_BASE
@@ -65,8 +72,128 @@ protection_mode:
     or eax, 0x8000_0000
     mov cr0, eax
 
+    ;初始化内核
+    ;将内核程序映射
+    call kernel_init
     xchg bx, bx
+    mov esp, 0xc009f000
+    jmp KERNEL_ENTRY
     jmp $
+
+kernel_init:
+    xor eax, eax
+    xor edx, edx
+    xor ebx, ebx
+    xor ecx, ecx
+    ;程序表项大小
+    mov dx, [KERNEL_BIN_BASE_ADDR + 42]
+    ;程序表头基址
+    mov ebx, [KERNEL_BIN_BASE_ADDR + 28]
+    add ebx, KERNEL_BIN_BASE_ADDR
+    ;程序表项数目
+    mov cx, [KERNEL_BIN_BASE_ADDR + 44]
+    .each_segment:
+        cmp byte [ebx], PT_TYPE_NULL
+        je .jumpto_next_segment
+
+        ;复制段
+        ;size
+        push dword [ebx + 16]
+        ;src
+        mov eax, [ebx + 4]
+        add eax, KERNEL_BIN_BASE_ADDR
+        push eax
+        ;dest
+        push dword [ebx + 8]
+        call mem_cpy
+        add esp, 12
+
+        .jumpto_next_segment:
+        add ebx, edx
+        loop .each_segment
+    ret
+
+;复制字节
+;dest, src, size
+mem_cpy:
+    cld
+
+    ; xchg bx, bx
+
+    push ebp
+    mov ebp, esp
+    push ecx
+    mov edi, [ebp + 8]
+    mov esi, [ebp + 12]
+    mov ecx, [ebp + 16]
+    rep movsb
+
+    ; xchg bx, bx
+
+    pop ecx
+    pop ebp
+
+    ret
+
+;读取硬盘
+;eax 起始扇区
+;ebx 目标地址
+;cx 扇区数
+read_disk_32:
+    ;选择主通道
+    ;写入扇区数
+    push eax
+    mov ax, cx
+    mov dx, 0x1f2
+    out dx, ax
+    pop eax
+    ;写入lba低24位
+    mov dx, 0x1f3
+    out dx, al
+    mov dx, 0x1f4
+    shr ax, 8
+    out dx, al
+    mov dx, 0x1f5
+    shr ax, 8
+    out dx, al
+    ;lba 24-27位
+    mov dx, 0x1f6
+    and al, 0xff
+    or al, 0b11100000
+    out dx, al
+    ;command
+    mov dx, 0x1f7
+    mov al, 0x20
+    out dx, al
+
+    ;判断status
+    .status:
+        in al, dx
+        and al, 0b10001000
+        cmp al, 0b00001000
+        jmp $+2
+        jmp $+2
+        jmp $+2
+        jnz .status
+    
+    
+    ;读取数据
+    ;读取扇区数*512字节/2每次一个字
+    mov ax, 256
+    mul cx
+    mov cx, ax
+    mov dx, 0x1f0
+    .read:
+        ;读取一个字
+        jmp $+2
+        jmp $+2
+        jmp $+2
+        in ax, dx
+        mov [ebx], ax
+        add bx, 2
+        loop .read
+    
+    ret
 
 ;分配页表
 setup_page:
@@ -112,6 +239,12 @@ setup_page:
     ret
     
 
+;内核部分
+KERNEL_BIN_BASE_ADDR equ 0x70000
+KERNEL_BIN_SECTOR_START equ 0x9
+KERNEL_BIN_SECTOR_COUNT equ 10
+PT_TYPE_NULL equ 0
+KERNEL_ENTRY equ 0x1500
 
 ; 页表部分
 ; 页目录物理地址
