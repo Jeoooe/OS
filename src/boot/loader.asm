@@ -1,305 +1,215 @@
-;loader
-;进入保护模式 
+[org 0x1000]
 
-;宏
-LOADER_BASE_ADDR equ 0x900  ;loader运行目标内存地址
+dw 0x55aa; 魔数 判断错误
 
 
-section loader vstart=LOADER_BASE_ADDR
-    [bits 16]
-    mov ax, LOADER_BASE_ADDR
-    mov sp, ax
 
-    ;调用bios内存检测
-    ;内存检测
-    ;子功能号 0xe820
+mov si, loading
+call print
+
+detect_memory:
     xor ebx, ebx
-    mov di, ards_start
+
+    ; es:di 缓存位置
+    mov ax, 0
+    mov es, ax
+    mov edi, ards_buffer
+
+    mov edx, 0x534d4150 ;签名
+
+.next:
+    mov eax, 0xe820 ;子功能号
+    ;结构体大小
     mov ecx, 20
-    mov edx, 0x534d4150 ;固定签名
-    .read_ards:
-        mov eax, 0xe820
-        int 0x15
-        jc .error   ;cf=1,出错
-        add di, cx
-        cmp ebx, 0
-        jnz .read_ards
 
+    int 0x15
 
-    ;全局描述符表
-    ;加载gdt
-    lgdt [gdt_ptr]
-    ;打开a20
-    in al, 0x92
+    ;CF = 1
+    jc error
+
+    add di, cx
+
+    ;结构体数量+1
+    inc dword [ards_count]
+
+    cmp ebx, 0
+    jnz .next
+
+    mov si, detecting
+    call print
+
+    jmp prepare_protected_mode
+
+;准备保护模式
+prepare_protected_mode:
+
+    cli ;关闭中断
+    ;打开A20线
+    in  al, 0x92
     or al, 0b10
     out 0x92, al
-    ;pe置为1
+
+    ;加载gdt全局描述符
+    lgdt [gdt_ptr]
+
     mov eax, cr0
-    or eax, 0x1
-    mov cr0, eax
-    ;跳转
-    jmp dword gdt_code_selector:protection_mode
-
-.error:
-    jmp $
-
-
-
-    [bits 32]
-protection_mode:
-    
-    mov eax, gdt_data_selector
-    mov ds, eax
-    mov es, eax
-    mov fs, eax
-    mov gs, eax
-    mov ss, eax
-    mov esp, LOADER_BASE_ADDR
-
-    ;加载内核文件
-    mov eax, KERNEL_BIN_SECTOR_START
-    mov ebx, KERNEL_BIN_BASE_ADDR
-    mov ecx, KERNEL_BIN_SECTOR_COUNT
-    call read_disk_32
-    
-
-    ;开启分页机制
-    call setup_page
-    ;赋值cr3,并置cr0的PG位
-    mov eax, PAGE_DIR_BASE
-    mov cr3, eax
-    mov eax, cr0
-    or eax, 0x8000_0000
+    or eax, 1
     mov cr0, eax
 
-    ;初始化内核
-    ;将内核程序映射
-    call kernel_init
-    xchg bx, bx
-    mov esp, 0xc009f000
-    jmp KERNEL_ENTRY
+    jmp dword code_selector:protect_mode
+
+print:
+    mov ah, 0x0e
+.next:
+    mov al, [si]
+    cmp al, 0
+    jz .done
+    int 0x10
+    inc si
+    jmp .next
+.done :
+    ret
+
+
+loading:
+    db "Loading os...", 13, 10, 0; \n \r \0
+detecting:
+    db "Detecting Memory Success...", 13, 10, 0; \n \r \0
+
+error:
+    mov si, .msg
+    call print
+    hlt ;cpu停止
     jmp $
+    .msg db "Loading Error!!!", 10, 13, 0
 
-kernel_init:
-    xor eax, eax
-    xor edx, edx
-    xor ebx, ebx
-    xor ecx, ecx
-    ;程序表项大小
-    mov dx, [KERNEL_BIN_BASE_ADDR + 42]
-    ;程序表头基址
-    mov ebx, [KERNEL_BIN_BASE_ADDR + 28]
-    add ebx, KERNEL_BIN_BASE_ADDR
-    ;程序表项数目
-    mov cx, [KERNEL_BIN_BASE_ADDR + 44]
-    .each_segment:
-        cmp byte [ebx], PT_TYPE_NULL
-        je .jumpto_next_segment
 
-        ;复制段
-        ;size
-        push dword [ebx + 16]
-        ;src
-        mov eax, [ebx + 4]
-        add eax, KERNEL_BIN_BASE_ADDR
-        push eax
-        ;dest
-        push dword [ebx + 8]
-        call mem_cpy
-        add esp, 12
+;进入了保护模式
+[bits 32]
+protect_mode:
+    ;初始化段寄存器
+    mov ax, data_selector
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
 
-        .jumpto_next_segment:
-        add ebx, edx
-        loop .each_segment
-    ret
+    mov esp, 0x10000;栈顶
 
-;复制字节
-;dest, src, size
-mem_cpy:
-    cld
+    ;读取内核
+    mov edi, 0x10000     ;把内核读取到内存0x10000 
+    mov ecx, 10          ;内核起始扇区
+    mov bl, 200           ;扇区数量 
+    call read_disk
 
-    ; xchg bx, bx
+    mov eax, 0x20250307
+    mov ebx, ards_count
 
-    push ebp
-    mov ebp, esp
-    push ecx
-    mov edi, [ebp + 8]
-    mov esi, [ebp + 12]
-    mov ecx, [ebp + 16]
-    rep movsb
+    jmp dword code_selector:0x10000
 
-    ; xchg bx, bx
+    ud2         ;表示出错
 
-    pop ecx
-    pop ebp
+jmp $
 
-    ret
-
-;读取硬盘
-;eax 起始扇区
-;ebx 目标地址
-;cx 扇区数
-read_disk_32:
-    ;选择主通道
-    ;写入扇区数
-    push eax
-    mov ax, cx
+read_disk:
     mov dx, 0x1f2
-    out dx, ax
-    pop eax
-    ;写入lba低24位
-    mov dx, 0x1f3
-    out dx, al
-    mov dx, 0x1f4
-    shr ax, 8
-    out dx, al
-    mov dx, 0x1f5
-    shr ax, 8
-    out dx, al
-    ;lba 24-27位
-    mov dx, 0x1f6
-    and al, 0xff
-    or al, 0b11100000
-    out dx, al
-    ;command
-    mov dx, 0x1f7
-    mov al, 0x20
+    mov al, bl
     out dx, al
 
-    ;判断status
-    .status:
-        in al, dx
-        and al, 0b10001000
-        cmp al, 0b00001000
-        jmp $+2
-        jmp $+2
-        jmp $+2
-        jnz .status
-    
-    
-    ;读取数据
-    ;读取扇区数*512字节/2每次一个字
-    mov ax, 256
-    mul cx
-    mov cx, ax
-    mov dx, 0x1f0
+    inc dx ;0x1f3
+    mov al, cl; 起始扇区前八位
+    out dx, al
+
+    inc dx ;0x1f4
+    shr ecx, 8 ; >>8
+    mov al, cl; 起始扇区中八位
+    out dx, al
+
+    inc dx ;0x1f5
+    shr ecx, 8 ; >>8
+    mov al, cl; 起始扇区高八位
+    out dx, al
+
+    inc dx; 0x1f6
+    shr ecx, 8
+    and cl, 0b1111;
+    mov al, 0b1110_0000;
+    or al, cl
+    out dx, al  ;主盘 - LBA模式
+
+    inc dx; 0x1f7
+    mov al,0x20 ;读硬盘
+    out dx, al
+
+    ;获取数据
+    xor ecx, ecx
+    mov cl, bl  ;读写扇区数量
+
     .read:
-        ;读取一个字
-        jmp $+2
-        jmp $+2
-        jmp $+2
-        in ax, dx
-        mov [ebx], ax
-        add bx, 2
+        push cx ;保存cx
+        call .waits ;等待数据准备
+        call .reads ;读取扇区
+        pop cx  ;恢复cx
         loop .read
-    
     ret
 
-;分配页表
-setup_page:
-    ;先把页目录置空
-    mov esi, 0
-    mov ecx, 0x1000
-    .clear_page_dir:
-        mov byte [PAGE_DIR_BASE + esi], 0
-        inc esi
-        loop .clear_page_dir
-    ;设置最后一个页目录项为页目录地址
-    mov eax, PAGE_DIR_BASE
-    or eax, PAGE_RW_W | PAGE_US_U | PAGE_PRESENT
-    mov [PAGE_DIR_BASE + 4092], eax
-    ;设置0和768页目录项为第0个页表0x11000
-    ;即0xC000_0000物理内存, 3GB起点
-    add eax, 0x1000
-    mov [PAGE_DIR_BASE], eax
-    mov [PAGE_DIR_BASE + 768 * 4], eax
-    ;初始化第0页表
-    ;内核内存仅1M,则映射256页
-    mov eax, PAGE_DIR_BASE  ;eax页目录物理地址
-    add eax, 0x1000
-    mov ecx, 256
-    mov esi, 0
-    mov edx, PAGE_PRESENT | PAGE_RW_W | PAGE_US_U   ;物理地址0开始
-    .set_kernel_memory_page:
-        mov [eax + esi * 4], edx
-        inc esi
-        add edx, 0x1000
-        loop .set_kernel_memory_page
-    ;设置769到1022页目录项
-    mov eax, PAGE_DIR_BASE  ;eax页目录物理地址
-    mov ecx, 254
-    mov edx, PAGE_DIR_BASE + 0x2000
-    or edx, PAGE_PRESENT | PAGE_RW_W | PAGE_US_U
-    mov esi, 769
-    .set_high_1g:
-        mov [eax + esi * 4], edx
-        inc esi
-        add edx, 0x1000
-        loop .set_high_1g
-    ret
-    
+    .waits:
+        mov dx, 0x1f7
+        .check:
+            in al, dx
+            jmp $+2;
+            jmp $+2
+            jmp $+2
+            and al, 0b1000_1000
+            cmp al, 0b0000_1000
+            jnz .check
+        ret
 
-;内核部分
-KERNEL_BIN_BASE_ADDR equ 0x70000
-KERNEL_BIN_SECTOR_START equ 0x9
-KERNEL_BIN_SECTOR_COUNT equ 10
-PT_TYPE_NULL equ 0
-KERNEL_ENTRY equ 0x1500
+    .reads:
+        mov dx, 0x1f0
+        mov cx, 256 ;扇区大小
+        .readw:
+            in ax, dx
+            jmp $+2
+            jmp $+2
+            jmp $+2
+            mov [edi], ax
+            add edi, 2
+            loop .readw
+        ret
 
-; 页表部分
-; 页目录物理地址
-PAGE_DIR_BASE equ 0x100000
-PAGE_PRESENT equ 1
-PAGE_RW_R equ (0 << 1)
-PAGE_RW_W equ (1 << 1)
-PAGE_US_S equ (0 << 2)  ;;超级用户 特权级0
-PAGE_US_U equ (1 << 2)  ;;普通用户 特权级3
+code_selector equ (1<<3)
+data_selector equ (2<<3)
 
-;GDT部分
-;选择子
-gdt_code_selector equ (1 << 3)
-gdt_data_selector equ (2 << 3)
+memory_base equ 0
+memory_limit equ 1024*1024 - 1 ; 4GB - 1 (4kb粒度)
 
-;先低位再高位
-;小端字节序
-BASE_HIGH8 equ 0x00 << 24
-BASE_LOW8 equ 0
-GDT_S_SYSTEM equ 0 << 12
-GDT_S_DATA equ 1 << 12
-GDT_TYPE_CODE equ 0b1000 << 8   ;xcra
-GDT_TYPE_DATA equ 0b0010 << 8   ;xewa
-GDT_DPL equ 0b00 << 13
-GDT_PRESENT equ 0b1<<15
-GDT_LIMIT_HIGH4 equ 0xf<<16
-GDT_AVL equ 1 << 20
-GDT_L equ 0 << 21
-GDT_D equ 1 << 22
-GDT_G equ 1 << 23
-
-;代码段描述符
-GDT_CODE_DESC_HIGH32 equ BASE_LOW8 | GDT_S_DATA | GDT_TYPE_CODE | \
-    GDT_DPL | GDT_PRESENT | GDT_LIMIT_HIGH4 | GDT_AVL | GDT_L | \
-    GDT_D | GDT_G
-;数据段段描述符
-GDT_DATA_DESC_HIGH32 equ BASE_LOW8 | GDT_S_DATA | GDT_TYPE_DATA | \
-    GDT_DPL | GDT_PRESENT | GDT_LIMIT_HIGH4 | GDT_AVL | GDT_L | \
-    GDT_D | GDT_G
-
-;gdt表界限
-gdt_limit equ gdt_end - gdt_start - 1
-
+;gdt指针
 gdt_ptr:
-    dw gdt_limit
-    dd gdt_start
-
-gdt_start:
-    dd 0, 0
+    dw (gdt_end - gdt_base) - 1
+    dd gdt_base
+gdt_base:
+    dd 0, 0;    NULL 描述符
+;代码段
 gdt_code:
-    dd 0x0000ffff
-    dd GDT_CODE_DESC_HIGH32
+    dw memory_limit & 0xffff
+    dw memory_base & 0xffff 
+    db (memory_base >> 16) & 0xff
+    db 0b_1_00_1_1_0_1_0    
+    db 0b_1_1_0_0_0000 | ((memory_limit >> 16) & 0xf)
+    db (memory_base >> 24) & 0xff
+;数据段
 gdt_data:
-    dd 0x0000ffff
-    dd GDT_DATA_DESC_HIGH32
+    dw memory_limit & 0xffff
+    dw memory_base & 0xffff 
+    db (memory_base >> 16) & 0xff
+    db 0b_1_00_1_0_0_1_0    
+    db 0b_1_1_0_0_0000 | ((memory_limit >> 16) & 0xf)
+    db (memory_base >> 24) & 0xff
 gdt_end:
-    nop
-ards_start:
+
+ards_count:
+    dd 0
+ards_buffer:    ;BIOS 内存检测缓存
+    
