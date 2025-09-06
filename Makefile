@@ -22,6 +22,7 @@ $(BUILD)/kernel/io.o \
 $(BUILD)/kernel/console.o \
 $(BUILD)/kernel/printk.o \
 $(BUILD)/kernel/vsprintf.o \
+$(BUILD)/kernel/assert.o \
 $(BUILD)/lib/string.o \
 
 
