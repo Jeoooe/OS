@@ -20,6 +20,9 @@ $(BUILD)/kernel/start.o \
 $(BUILD)/kernel/main.o \
 $(BUILD)/kernel/io.o \
 $(BUILD)/kernel/console.o \
+$(BUILD)/kernel/printk.o \
+$(BUILD)/kernel/vsprintf.o \
+$(BUILD)/lib/string.o \
 
 
 
@@ -32,7 +35,11 @@ $(BUILD)/boot/%.bin: $(SRC_DIR)/boot/%.asm
 $(BUILD)/kernel/%.o: $(SRC_DIR)/kernel/%.asm
 	nasm -f elf32 -gdwarf -o $@ $<
 
+
 $(BUILD)/kernel/%.o: $(SRC_DIR)/kernel/%.c
+	gcc $(CFLAGS) $(CDEBUG) -Wall -c -o $@ $< 
+
+$(BUILD)/lib/%.o: $(SRC_DIR)/lib/%.c
 	gcc $(CFLAGS) $(CDEBUG) -Wall -c -o $@ $< 
 
 $(BUILD)/kernel.bin: $(KERNEL_TARGETS)
@@ -76,3 +83,4 @@ clear:
 	mkdir -p $(BUILD)
 	mkdir -p $(BUILD)/boot
 	mkdir -p $(BUILD)/kernel
+	mkdir -p $(BUILD)/lib
