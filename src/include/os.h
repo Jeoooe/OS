@@ -3,5 +3,6 @@
 
 #define MAGIC 799
 
+int printk(const char *fmt, ...);
 
 #endif
