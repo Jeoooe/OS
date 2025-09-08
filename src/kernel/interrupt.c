@@ -42,6 +42,26 @@ const char *intr_names[INTR_DESC_COUNT] = {
 //中断处理函数
 intr_handler handler_table[INTR_DESC_COUNT];
 
+
+//中断开关
+void set_interrupt_state(bool state) {
+    if (state) {
+        asm volatile("sti");
+    }
+    else {
+        asm volatile("cli");
+    }
+}
+//获取中断状态
+bool get_interrupt_state() {
+    asm volatile(
+    "pushfl\n"
+    "popl %eax\n"
+    "shrl $9, %eax\n"
+    "andl $1, %eax");
+}
+
+
 void default_handler(uint8_t vector) {
     printk("[Default Handler] vector: %#x\n", vector);
     BMB;

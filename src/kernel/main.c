@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <console.h>
 #include <assert.h>
+#include <interrupt.h>
 
 const char buf[] = "Kernel Init...";
 
@@ -16,7 +17,8 @@ void kernel_main() {
     interrupt_init();
     timer_init();
     printk("Kernel Init...\nYB is %u\n", 799);
-    asm volatile("sti");
+    bool flag = get_interrupt_state();
+    set_interrupt_state(true);
     BMB;
     while (1)
         ;
