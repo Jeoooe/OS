@@ -26,6 +26,7 @@ $(BUILD)/kernel/assert.o \
 $(BUILD)/kernel/debug.o \
 $(BUILD)/kernel/interrupt.o \
 $(BUILD)/kernel/interrupt_handler.o \
+$(BUILD)/kernel/timer.o \
 $(BUILD)/lib/string.o \
 
 
