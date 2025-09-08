@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <io.h>
 #include <global.h>
+#include <assert.h>
 
 #define INTR_DESC_COUNT 0x21
 
@@ -12,21 +13,38 @@
 #define PIC_S_CTRL 0xa0
 #define PIC_S_DATA 0xa1
 
-typedef struct interrupt_desc_t {
-    uint16_t handler_low_16;
-    uint16_t descriptor;
-    uint8_t zeros;
-    uint8_t attributes;
-    uint16_t handler_high_16;
-} interrupt_desc_t;
-
-
 //全局变量
 interrupt_desc_t idt[INTR_DESC_COUNT];
 descriptor_ptr idt_ptr;
 
-void tmp_handler() {
-    printk("Interrupt occur...\n");
+const char *intr_names[INTR_DESC_COUNT] = {
+    "#DE Divide Error",
+    "#DB Debug Exception",
+    "NMI Interrupt",
+    "#BP Breakpoint",
+    "#OF Overflow",
+    "#BR BOUND Range Exceeded",
+    "#UD Invalid Opcode",
+    "#NM Device Not Available",
+    "#DF Double Fault",
+    "Coprocessor Segment Overrun",
+    "#TS Invalid TSS",
+    "#NP Segment Not Present",
+    "#SS Stack-Segment Fault",
+    "#GP General Protection",
+    "#PF Page Fault",
+    "Reserved",
+    "#MF x87 FPU Floating-Point Error",
+    "#AC Alignment Check",
+    "#MC Machine Check",
+    "#XF SIMD Floating-Point Exception"
+};
+//中断处理函数
+intr_handler handler_table[INTR_DESC_COUNT];
+
+void default_handler(uint8_t vector) {
+    printk("[Default Handler] vector: %#x\n", vector);
+    BMB;
 }
 
 extern intr_handler handler_entry_table[];
@@ -69,11 +87,18 @@ static void pic_init() {
     LOGK("Pic init done");
 }
 
+static void handlers_init() {
+    int i;
+    for (i = 0;i < INTR_DESC_COUNT;i++) {
+        handler_table[i] = default_handler;
+    }
+}
+
 void interrupt_init() {
     LOGK("Interrupt Init...");
     idt_desc_init();
+    handlers_init();
     pic_init();
-
     //加载IDT
     idt_ptr.limit = sizeof(idt) - 1;
     idt_ptr.base = (uint32_t)idt;

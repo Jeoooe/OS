@@ -1,21 +1,39 @@
 [bits 32]
 
-extern tmp_handler
+; extern tmp_handler
+extern handler_table    ;中断处理函数的数组,在interrupt.c中定义
 
 %define ERROR nop
 %define ZERO push 0
-
 %macro INTERRUPT_HANDLER 2
 interrupt_handler_%1:
     %2
-    call tmp_handler
+    ;保存上下文
+    push ds
+    push es
+    push fs
+    push gs
+    pushad  ;压入32位寄存器
+
+    ;发送处理完成信号
     mov al, 0x20
     out 0xa0, al
     out 0x20, al
-    add esp, 4
-    iret
+
+    push %1 ;压入中断向量号
+    call [handler_table + %1 * 4]
+    jmp intr_exit
 %endmacro
 
+intr_exit:
+    add esp, 4  ;跳过中断号
+    popad
+    pop gs
+    pop fs
+    pop es
+    pop ds
+    add esp, 4
+    iret
 
 
 INTERRUPT_HANDLER 0x00, ZERO

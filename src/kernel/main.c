@@ -13,7 +13,7 @@ extern void interrupt_init();
 void kernel_main() {
     console_init();
     interrupt_init();
-    printk("Kernel Init...\nYB is %u", 799);
+    printk("Kernel Init...\nYB is %u\n", 799);
     asm volatile("sti");
     BMB;
     while (1)
