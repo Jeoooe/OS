@@ -17,4 +17,7 @@ typedef unsigned int uint32_t;
 typedef int size_t;
 
 
+#define _packed __attribute__((packed))
+
+
 #endif

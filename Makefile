@@ -23,6 +23,9 @@ $(BUILD)/kernel/console.o \
 $(BUILD)/kernel/printk.o \
 $(BUILD)/kernel/vsprintf.o \
 $(BUILD)/kernel/assert.o \
+$(BUILD)/kernel/debug.o \
+$(BUILD)/kernel/interrupt.o \
+$(BUILD)/kernel/interrupt_handler.o \
 $(BUILD)/lib/string.o \
 
 
