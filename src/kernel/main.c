@@ -6,20 +6,17 @@
 #include <assert.h>
 #include <interrupt.h>
 
-const char buf[] = "Kernel Init...";
-
 extern void console_init();
 extern void interrupt_init();
 extern void timer_init();
+extern void memory_init();
 
 void kernel_main() {
     console_init();
+    memory_init();
     interrupt_init();
     timer_init();
     printk("Kernel Init...\nYB is %u\n", 799);
-    bool flag = get_interrupt_state();
-    set_interrupt_state(true);
-    BMB;
     while (1)
         ;
 }
