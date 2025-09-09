@@ -10,7 +10,8 @@
 #define INDEX_MASK(addr) (addr & 0xfffff000)
 #define INDEX_TO_ADDR(index) (index << 12)
 
-uint32_t *pde;
+// #define KERNEL_MEMORY_SIZE 0x40000000   //内核内存大小 1GB
+#define KERNEL_VADDR_START 0xc0000000   //内核内存起始虚拟地址
 
 static void set_cr3(uint32_t pde) {
     asm volatile("movl %%eax, %%cr3"::"a"(pde));
@@ -18,9 +19,9 @@ static void set_cr3(uint32_t pde) {
 
 static void page_init() {
     const uint32_t attr = 0b111;
-    int i;
-    uint32_t* pte1;
-    pde = (uint32_t *)PDE_BASE;
+    uint32_t *pde = (uint32_t *)PDE_BASE;
+    uint32_t* pte;
+    int i, addr;
     //清空页目录的内存
     memset(pde, 0, PAGE_SIZE);
     //设定首个页表和最后一个页表
@@ -28,15 +29,22 @@ static void page_init() {
     pde[INDEX_SIZE - 1] = PDE_BASE | attr;
 
     //创建第一个页表
-    pte1 = (uint32_t*)(PDE_BASE + PAGE_SIZE);
+    pte = (uint32_t*)(PDE_BASE + PAGE_SIZE);
     for (i = 0; i < PDE_BASE / PAGE_SIZE;i++) {
-        pte1[i] = INDEX_TO_ADDR(i) | attr;
+        pte[i] = INDEX_TO_ADDR(i) | attr;
+    }
+
+    //映射内核内存空间
+    //高1GB
+    addr = (PDE_BASE + PAGE_SIZE) | attr;
+    for (i = 0;i < 255;i++) {
+        pde[i + 768] = addr;
+        addr += 0x1000;
     }
 
     //赋值cr3
     set_cr3((uint32_t)pde);
     //设置cr0
-    BMB;
     asm volatile(
         "movl %cr0, %eax\n"
         "orl $0x80000000, %eax\n"
