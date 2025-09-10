@@ -5,18 +5,18 @@
 #include <console.h>
 #include <assert.h>
 #include <interrupt.h>
+#include <memory.h>
 
-extern void console_init();
 extern void interrupt_init();
 extern void timer_init();
-extern void memory_init();
 
 void kernel_main() {
-    console_init();
-    memory_init();
     interrupt_init();
     timer_init();
     printk("Kernel Init...\nYB is %u\n", 799);
+    void *addr = get_kpages(3);
+    printk("Allocate 3 pages\nStart Addr: 0x%x\n", (uint32_t)addr);
+    BMB;
     while (1)
         ;
 }
