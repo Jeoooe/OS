@@ -1,6 +1,8 @@
 #ifndef OS_MEMORY_H
 #define OS_MEMORY_H
 
+#define PAGE_SIZE 0x1000
+
 #include <stdint.h>
 
 typedef enum pool_flag {

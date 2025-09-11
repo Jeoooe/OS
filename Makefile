@@ -29,6 +29,7 @@ $(BUILD)/kernel/interrupt_handler.o \
 $(BUILD)/kernel/timer.o \
 $(BUILD)/kernel/memory.o \
 $(BUILD)/kernel/bitmap.o \
+$(BUILD)/kernel/thread.o \
 $(BUILD)/lib/string.o \
 
 

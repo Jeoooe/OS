@@ -7,7 +7,6 @@
 #include <assert.h>
 
 #define PDE_BASE 0x100000
-#define PAGE_SIZE 0x1000
 #define INDEX_SIZE PAGE_SIZE / 4
 
 #define MEMORY_BITMAP_BASE  0xc009a000
