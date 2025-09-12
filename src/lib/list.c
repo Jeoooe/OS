@@ -84,7 +84,7 @@ uint32_t list_size(list_t *list) {
 }
 
 
-uint32_t list_insert_sort(list_t *list, list_node_t *node, int offset) {
+void list_insert_sort(list_t *list, list_node_t *node, int offset) {
     list_node_t *anchor = &list->tail;
     int key = element_node_key(node, offset);
     for (list_node_t *ptr = list->head.next; ptr != &list->tail; ptr = ptr->next) {

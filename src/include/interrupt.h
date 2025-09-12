@@ -42,4 +42,6 @@ void set_interrupt_state(bool state);
 //获取中断是否开启
 bool get_interrupt_state();
 
+void register_handler(uint8_t vector, intr_handler handler);
+
 #endif

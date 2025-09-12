@@ -61,6 +61,9 @@ bool get_interrupt_state() {
     "andl $1, %eax");
 }
 
+void register_handler(uint8_t vector, intr_handler handler) {
+    handler_table[vector] = handler;
+}
 
 void default_handler(uint8_t vector) {
     printk("[Default Handler] vector: %#x\n", vector);

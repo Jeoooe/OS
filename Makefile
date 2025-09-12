@@ -30,7 +30,14 @@ $(BUILD)/kernel/timer.o \
 $(BUILD)/kernel/memory.o \
 $(BUILD)/kernel/bitmap.o \
 $(BUILD)/kernel/thread.o \
+$(BUILD)/kernel/switch.o \
+
+
+LIB_TARGETS:= \
 $(BUILD)/lib/string.o \
+$(BUILD)/lib/list.o \
+
+ALL_TARGETS:= $(KERNEL_TARGETS) $(LIB_TARGETS)
 
 
 
@@ -50,7 +57,7 @@ $(BUILD)/kernel/%.o: $(SRC_DIR)/kernel/%.c
 $(BUILD)/lib/%.o: $(SRC_DIR)/lib/%.c
 	gcc $(CFLAGS) $(CDEBUG) -Wall -c -o $@ $< 
 
-$(BUILD)/kernel.bin: $(KERNEL_TARGETS)
+$(BUILD)/kernel.bin: $(ALL_TARGETS)
 	ld $(LD_FLAGS) -o $@ $^
 
 $(SYSTEM): $(BUILD)/kernel.bin

@@ -1,7 +1,12 @@
+/* 
+ * 命名比较混乱, 这里任务和线程意义是一样的
+ */
+
 #ifndef OS_THREAD_H
 #define OS_THREAD_H
 
 #include <stdint.h>
+#include <list.h>
 
 typedef void (*thread_func)(void*);
 
@@ -16,6 +21,7 @@ typedef enum task_status {
 
 //线程栈
 typedef struct thread_stack_t {
+    /* 保存上下文环节, 即以下四个寄存器 */
     uint32_t ebp;
     uint32_t ebx;
     uint32_t edi;
@@ -25,23 +31,34 @@ typedef struct thread_stack_t {
     //其余时候是switch_to的返回地址
     void (*eip)(thread_func func, void* func_arg);
 
-    /* 第一次调度的时候才会使用
-     * 会进入kernel_thread,然后取参数
+    /* 第一次调度的时候才会使用, 
+     * 会进入kernel_thread,此时栈顶为以下三个变量,第一个参数是function
     */
     void *unused; //占位符,充作返回地址
     thread_func function;
     void* func_arg;
 } thread_stack_t;
 
+//内核PCB
 typedef struct task_block_t {
     uint32_t* self_kstack;  //线程在内核态下运行时使用的栈
     task_status status;
-    uint8_t priority;
     char name[16];
+    uint8_t priority;
+    uint8_t ticks;
+    uint32_t elapsed_ticks;
+    list_node_t node;
+    uint32_t pde_addr;  //进程的页表地址
     uint32_t magic;
 } task_block_t;
 
 
-task_block_t* thread_start(char* name, int priority, thread_func function, void* func_arg);
+task_block_t* thread_create(char* name, int priority, thread_func function, void* func_arg);
+
+//获取当前任务
+task_block_t* running_task();
+
+//任务调度
+void schedule();
 
 #endif
