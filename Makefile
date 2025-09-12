@@ -36,6 +36,7 @@ $(BUILD)/kernel/switch.o \
 LIB_TARGETS:= \
 $(BUILD)/lib/string.o \
 $(BUILD)/lib/list.o \
+$(BUILD)/lib/mutex.o \
 
 ALL_TARGETS:= $(KERNEL_TARGETS) $(LIB_TARGETS)
 

@@ -60,6 +60,24 @@ bool get_interrupt_state() {
     "shrl $9, %eax\n"
     "andl $1, %eax");
 }
+bool interrupt_disable() {
+    asm volatile(
+    "pushfl\n"
+    "popl %eax\n"
+    "cli\n"
+    "shrl $9, %eax\n"
+    "andl $1, %eax"
+    );
+}
+bool interrupt_enable() {
+    asm volatile(
+    "pushfl\n"
+    "popl %eax\n"
+    "sti\n"
+    "shrl $9, %eax\n"
+    "andl $1, %eax"
+    );
+}
 
 void register_handler(uint8_t vector, intr_handler handler) {
     handler_table[vector] = handler;
@@ -89,6 +107,7 @@ static void idt_desc_init() {
 
 //初始化中断控制器
 static void pic_init() {
+    LOGK("Pic init...");
     //初始化主片
     outb(PIC_M_CTRL, 0x11);     //ICW1 边沿触发,级联
     outb(PIC_M_DATA, 0x20);     //ICW2 起始中断向量号为0x20(32)
@@ -106,8 +125,6 @@ static void pic_init() {
     //时钟中断
     outb(PIC_M_DATA, 0xfe);
     outb(PIC_S_DATA, 0xff);
-
-    LOGK("Pic init done");
 }
 
 static void handlers_init() {
@@ -123,8 +140,9 @@ void interrupt_init() {
     handlers_init();
     pic_init();
     //加载IDT
+    LOGK("Idt_init...");
     idt_ptr.limit = sizeof(idt) - 1;
     idt_ptr.base = (uint32_t)idt;
     asm volatile("lidt idt_ptr");
-    LOGK("Idt_init done");
+    
 }

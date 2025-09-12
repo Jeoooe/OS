@@ -20,7 +20,7 @@ typedef enum task_status {
 } task_status;
 
 //线程栈
-typedef struct thread_stack_t {
+typedef struct task_stack_t {
     /* 保存上下文环节, 即以下四个寄存器 */
     uint32_t ebp;
     uint32_t ebx;
@@ -37,7 +37,7 @@ typedef struct thread_stack_t {
     void *unused; //占位符,充作返回地址
     thread_func function;
     void* func_arg;
-} thread_stack_t;
+} task_stack_t;
 
 //内核PCB
 typedef struct task_block_t {
@@ -52,13 +52,21 @@ typedef struct task_block_t {
     uint32_t magic;
 } task_block_t;
 
-
-task_block_t* thread_create(char* name, int priority, thread_func function, void* func_arg);
+//创建线程
+task_block_t* task_create(char* name, int priority, thread_func function, void* func_arg);
 
 //获取当前任务
 task_block_t* running_task();
 
 //任务调度
 void schedule();
+
+/* 任务阻塞相关 */
+//阻塞自己
+void task_block(task_status status);
+//解除阻塞
+void task_unblock(task_block_t* task);
+
+
 
 #endif

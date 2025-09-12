@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <io.h>
 #include <debug.h>
+#include <mutex.h>
 
 #define MEM_BASE 0xb8000
 #define MEM_END 0xc0000
@@ -23,8 +24,10 @@
 #define LF 0xa      //新行
 #define CR 0xd      //换行
 
+/* 全局变量 */
 static uint16_t cursor_position = 0;
 static uint16_t screen_position = 0;
+static lock_t lock;
 
 #define ADDR (MEM_BASE + (cursor_position + screen_position) * 2)
 
@@ -47,7 +50,7 @@ static inline void set_screen() {
 //清除屏幕
 static inline void erase_screen() {
     uint16_t *ptr = (uint16_t *)MEM_BASE;
-    for (;ptr < MEM_END;) {
+    for (;ptr != MEM_END;) {
         *ptr++ = 0;
     }
 }
@@ -106,16 +109,19 @@ static void console_write_one(uint8_t ch) {
 }
 
 void console_write(const char* buf, size_t count) {
+    lock_acquire(&lock);
     uint8_t* ptr = (uint8_t *)buf;
     while (count-- > 0)
     {
         console_write_one(*ptr);
         ptr++;
     }
+    lock_release(&lock);
 }
 
 void console_init() {
     cursor_position = 0;
     set_cursor();
     erase_screen();
+    lock_init(&lock);
 }

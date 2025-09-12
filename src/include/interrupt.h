@@ -41,6 +41,11 @@ typedef struct interrupt_stack_t {
 void set_interrupt_state(bool state);
 //获取中断是否开启
 bool get_interrupt_state();
+//关中断, 返回原先的状态
+bool interrupt_disable();
+//开中断, 返回原先的状态
+bool interrupt_enable();
+
 
 void register_handler(uint8_t vector, intr_handler handler);
 

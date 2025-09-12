@@ -142,6 +142,7 @@ static void page_init() {
 }
 
 static void memory_pool_init(uint32_t ards_addr) {
+    LOGK("POOL Init...");
     /* 获取物理内存容量 */
     uint32_t phy_max_size = 0;
     const uint32_t ards_count = *(uint32_t *)ards_addr;
@@ -206,7 +207,7 @@ static void memory_pool_init(uint32_t ards_addr) {
     bitmap_init(&kernel_vaddr_pool, 
         (uint8_t*)(MEMORY_BITMAP_BASE + kernel_bit_length + user_bit_length), 
         kernel_bit_length, KERNEL_HEAP_START);
-    LOGK("POOL Init Done");
+    
 }
 
 //开启分页

@@ -27,13 +27,13 @@ void tmp2(void* arg) {
 }
 
 void kernel_main() {
-    printk("Kernel Init...\nYB is %u\n", MAGIC);
+    LOGK("Kernel Init...", MAGIC);
     interrupt_init();
     timer_init();
     task_init();
 
-    thread_create("k_thread_1", 31, tmp1, "arg1");
-    thread_create("k_thread_2", 8, tmp2, "arg2");
+    task_create("k_thread_1", 31, tmp1, "YB");
+    task_create("k_thread_2", 8, tmp2, "HELLOO");
 
     set_interrupt_state(true);
 

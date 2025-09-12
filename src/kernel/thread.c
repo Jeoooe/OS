@@ -9,7 +9,7 @@
 
 /* 全局变量 */
 task_block_t* main_thread;  //主线程
-list_t ready_thread_list;
+list_t ready_task_list;
 
 task_block_t* all_threads[MAX_THREAD_COUNT];
 
@@ -32,19 +32,19 @@ task_block_t* running_task() {
 
 extern void switch_to(task_block_t* cur, task_block_t* next);
 void schedule() {
-    assert(!get_interrupt_state());
+    assert(!get_interrupt_state()); //处于关中断状态
     task_block_t *cur = running_task();
     if (cur->status == TASK_RUNNING) {
         //时间片到期
-        list_pushback(&ready_thread_list, &cur->node);
+        list_pushback(&ready_task_list, &cur->node);
         cur->ticks = cur->priority;
         cur->status = TASK_READY;
     }
     else {
-        /* 其他事件发生 , 不加入READY队列*/ 
+        /* 其他事件发生 , 不加入READY队列 */ 
     }
-    assert(!list_empty(&ready_thread_list));
-    list_node_t *next_node = list_pop(&ready_thread_list);
+    assert(!list_empty(&ready_task_list));
+    list_node_t *next_node = list_pop(&ready_task_list);
     task_block_t *next = element_entry(task_block_t, node, next_node);
     next->status = TASK_RUNNING;
     switch_to(cur, next);
@@ -55,8 +55,40 @@ static void kernel_thread(thread_func function, void* func_arg) {
     function(func_arg);
 }
 
+void task_block(task_status status) {
+    bool intr_state = interrupt_disable();
+    task_block_t* task = running_task();
+    //正在运行的任务
+    assert(task->status == TASK_RUNNING);
+    //只能是阻塞为以下三个状态
+    assert(status == TASK_BLOCKED || status == TASK_WAITING || status == TASK_HANGING);
+    
+
+    task->status = status;
+
+    //主动调度
+    schedule();
+
+    set_interrupt_state(intr_state);
+}
+
+void task_unblock(task_block_t* task) {
+    bool intr_state = interrupt_disable();
+    assert(task->status == TASK_BLOCKED ||
+        task->status == TASK_WAITING || task->status == TASK_HANGING);
+    assert(!list_search(&ready_task_list, &task->node));
+
+    task->status = TASK_READY;
+
+    list_push(&ready_task_list, &task->node);
+
+    set_interrupt_state(intr_state);
+}
+
+
+
 //创建一个线程
-task_block_t* thread_create(char* name,
+task_block_t* task_create(char* name,
     int priority, thread_func function, void* func_arg
 ) {
     task_block_t *task = get_free_task();
@@ -74,19 +106,18 @@ task_block_t* thread_create(char* name,
     //预留栈空间
     task->self_kstack = (uint32_t*)((uint32_t)task + PAGE_SIZE);
     task->self_kstack -= sizeof(interrupt_stack_t);
-    task->self_kstack -= sizeof(thread_stack_t);
-    thread_stack_t* kstack = (thread_stack_t*)task->self_kstack;
+    task->self_kstack -= sizeof(task_stack_t);
+    task_stack_t* kstack = (task_stack_t*)task->self_kstack;
     kstack->eip = kernel_thread;
     kstack->function = function;
     kstack->func_arg = func_arg;
     kstack->ebp = kstack->ebx = kstack->edi = kstack->esi = 0;
 
     /* 加入队列 */
-    assert(!list_search(&ready_thread_list, &task->node));
-    list_pushback(&ready_thread_list, &task->node);
+    assert(!list_search(&ready_task_list, &task->node));
+    list_pushback(&ready_task_list, &task->node);
     return task;
 }
-
 
 static void task_setup() {
     main_thread = running_task();
@@ -102,6 +133,6 @@ static void task_setup() {
 
 void task_init() {
     /* 将主线程加入 */
-    list_init(&ready_thread_list);
+    list_init(&ready_task_list);
     task_setup();    
 }
