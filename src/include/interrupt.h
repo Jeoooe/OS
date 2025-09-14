@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+typedef enum interrupt_type_e {
+    INTERRUPT_TIMER = 0,
+    INTERRUPT_KEYBOARD,
+} interrupt_type_e;
+
 typedef void* intr_handler;
 
 typedef struct interrupt_desc_t {
@@ -46,7 +51,14 @@ bool interrupt_disable();
 //开中断, 返回原先的状态
 bool interrupt_enable();
 
+/// @brief 设置中断屏蔽
+/// @param type 中断类型
+/// @param mask 是否开启
+void interrupt_mask(interrupt_type_e type, bool mask);
+
 
 void register_handler(uint8_t vector, intr_handler handler);
+
+
 
 #endif

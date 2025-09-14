@@ -6,7 +6,7 @@
 #include <global.h>
 #include <assert.h>
 
-#define INTR_DESC_COUNT 0x21
+#define INTR_DESC_COUNT 0x30
 
 #define PIC_M_CTRL 0x20 //主片控制端口
 #define PIC_M_DATA 0x21 //主片数据端口
@@ -79,13 +79,21 @@ bool interrupt_enable() {
     );
 }
 
+void interrupt_mask(interrupt_type_e type, bool mask) {
+    assert(type >= 0 && type <= 8);
+    uint8_t flag = inb(PIC_M_DATA);
+    if (!mask) flag |= 1 << type;
+    else flag &= ~( 1<< type);
+    outb(PIC_M_DATA, flag); //主片屏蔽
+    // outb(PIC_S_DATA, 0xff); //从片屏蔽
+}
+
 void register_handler(uint8_t vector, intr_handler handler) {
     handler_table[vector] = handler;
 }
 
 void default_handler(uint8_t vector) {
     printk("[Default Handler] vector: %#x\n", vector);
-    BMB;
 }
 
 extern intr_handler handler_entry_table[];
@@ -122,8 +130,8 @@ static void pic_init() {
     outb(PIC_S_DATA, 0x02);     //ICW3 接主片IR2
     outb(PIC_S_DATA, 0x01);     //ICW4 8086模式,正常EOI
 
-    //时钟中断
-    outb(PIC_M_DATA, 0xfe);
+    //全部关闭
+    outb(PIC_M_DATA, 0xff);
     outb(PIC_S_DATA, 0xff);
 }
 

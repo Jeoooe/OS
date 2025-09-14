@@ -69,6 +69,21 @@ INTERRUPT_HANDLER 0x1d, ZERO
 INTERRUPT_HANDLER 0x1e, ZERO
 INTERRUPT_HANDLER 0x1f, ZERO
 INTERRUPT_HANDLER 0x20, ZERO    ;从这里开始是中断
+INTERRUPT_HANDLER 0x21, ZERO    ;键盘中断 
+INTERRUPT_HANDLER 0x22, ZERO    
+INTERRUPT_HANDLER 0x23, ZERO
+INTERRUPT_HANDLER 0x24, ZERO
+INTERRUPT_HANDLER 0x25, ZERO
+INTERRUPT_HANDLER 0x26, ZERO
+INTERRUPT_HANDLER 0x27, ZERO
+INTERRUPT_HANDLER 0x28, ZERO
+INTERRUPT_HANDLER 0x29, ZERO
+INTERRUPT_HANDLER 0x2a, ZERO
+INTERRUPT_HANDLER 0x2b, ZERO
+INTERRUPT_HANDLER 0x2c, ZERO
+INTERRUPT_HANDLER 0x2d, ZERO
+INTERRUPT_HANDLER 0x2e, ZERO
+INTERRUPT_HANDLER 0x2f, ZERO
 
 ;interrupt_handler_%1:
 global handler_entry_table
@@ -106,3 +121,18 @@ handler_entry_table:
     dd interrupt_handler_0x1e 
     dd interrupt_handler_0x1f 
     dd interrupt_handler_0x20     ;从这里开始是中断
+    dd interrupt_handler_0x21 
+    dd interrupt_handler_0x22 
+    dd interrupt_handler_0x23 
+    dd interrupt_handler_0x24 
+    dd interrupt_handler_0x25 
+    dd interrupt_handler_0x26 
+    dd interrupt_handler_0x27 
+    dd interrupt_handler_0x28 
+    dd interrupt_handler_0x29 
+    dd interrupt_handler_0x2a 
+    dd interrupt_handler_0x2b 
+    dd interrupt_handler_0x2c 
+    dd interrupt_handler_0x2d 
+    dd interrupt_handler_0x2e 
+    dd interrupt_handler_0x2f 

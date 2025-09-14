@@ -38,7 +38,11 @@ $(BUILD)/lib/string.o \
 $(BUILD)/lib/list.o \
 $(BUILD)/lib/mutex.o \
 
-ALL_TARGETS:= $(KERNEL_TARGETS) $(LIB_TARGETS)
+DEVICE_TARGETS:= \
+$(BUILD)/device/keyboard.o \
+$(BUILD)/device/ring.o \
+
+ALL_TARGETS:= $(KERNEL_TARGETS) $(LIB_TARGETS) $(DEVICE_TARGETS)
 
 
 
@@ -56,6 +60,9 @@ $(BUILD)/kernel/%.o: $(SRC_DIR)/kernel/%.c
 	gcc $(CFLAGS) $(CDEBUG) -Wall -c -o $@ $< 
 
 $(BUILD)/lib/%.o: $(SRC_DIR)/lib/%.c
+	gcc $(CFLAGS) $(CDEBUG) -Wall -c -o $@ $< 
+
+$(BUILD)/device/%.o: $(SRC_DIR)/device/%.c
 	gcc $(CFLAGS) $(CDEBUG) -Wall -c -o $@ $< 
 
 $(BUILD)/kernel.bin: $(ALL_TARGETS)

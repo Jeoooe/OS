@@ -2,6 +2,11 @@
 
 global inb
 inb:
+    push ebp
+    mov ebp, esp
+    mov edx, [ebp + 8]  ;端口号
+    in al, dx
+    leave
     ret
 
 global outb
@@ -19,6 +24,14 @@ outb:
 
 global inw
 inw:
+    push ebp
+    mov ebp, esp
+    mov edx, [ebp + 8]  ;端口号
+    xor ax, ax
+    in al, dx
+    shl ax, 4
+    in al, dx
+    leave
     ret
     
 global outw
