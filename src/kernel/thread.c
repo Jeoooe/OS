@@ -7,7 +7,6 @@
 
 #define MAX_THREAD_COUNT 64
 
-/* 全局变量 */
 task_block_t* main_thread;  //主线程
 list_t ready_task_list;
 

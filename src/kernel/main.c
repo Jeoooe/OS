@@ -13,12 +13,18 @@ extern void timer_init();
 extern void task_init();
 extern void keyboard_init();
 
-// void tmp1(void* arg) {
-//     char* para = (char*) arg;
-//     while (1) {
-//         printk(para);
-//     }
-// }
+#include <keyboard.h>
+void tmp1(void* arg) {
+    char* para = (char*) arg;
+    while (1) {
+        interrupt_disable();
+        if (!ring_empty(&kb_buf)) {
+            char ch = io_ring_getchar(&kb_buf);
+            console_write(&ch, 1);
+        }
+        interrupt_enable();
+    }
+}
 
 // void tmp2(void* arg) {
 //     char* para = (char*) arg;
@@ -33,10 +39,11 @@ void kernel_main() {
     timer_init();
     task_init();
     keyboard_init();
-    // task_create("k_thread_1", 31, tmp1, "YB");
+    task_create("k_thread_1", 31, tmp1, "YB");
     // task_create("k_thread_2", 8, tmp2, "HELLOO");
 
     interrupt_mask(INTERRUPT_KEYBOARD, true);
+    interrupt_mask(INTERRUPT_TIMER, true);
     set_interrupt_state(true);
 
     while (1)

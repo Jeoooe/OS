@@ -18,7 +18,6 @@
 #define READ_WRITE_LATCH 3
 #define PIT_CONTROL 0x40
 
-/* 全局变量 */
 uint32_t ticks; //内核中断以来总ticks
 
 static void intr_timer_handler() {

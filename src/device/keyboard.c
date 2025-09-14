@@ -20,6 +20,9 @@
 
 #define INV 0
 
+/* 全局变量 */
+io_ring_t kb_buf;
+
 //键盘扫描码
 static char keymap[][2] = {
     /* 扫描码 {无shift组合, shift组合} */
@@ -123,10 +126,8 @@ static char keymap[][2] = {
     /* 0x5F */ {INV,      INV,},   // PrintScreen
 };
 
-/* 全局变量 */
 static bool ctrl_state, shift_state, caps_lock_state, alt_state, ext_scancode;
 
-static io_ring_t kb_buf;
 
 static void intr_keyboard_handler(uint8_t vector) {
     // bool ctrl_last = ctrl_state;
@@ -183,7 +184,7 @@ static void intr_keyboard_handler(uint8_t vector) {
     if (ch) {
         if (!ring_full(&kb_buf)) {
             io_ring_putchar(&kb_buf, ch);
-            console_write(&ch, 1);
+            // console_write(&ch, 1);
         }
         return;
     }

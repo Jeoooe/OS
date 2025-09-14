@@ -13,7 +13,6 @@
 #define PIC_S_CTRL 0xa0
 #define PIC_S_DATA 0xa1
 
-//全局变量
 interrupt_desc_t idt[INTR_DESC_COUNT];
 descriptor_ptr idt_ptr;
 
@@ -130,7 +129,7 @@ static void pic_init() {
     outb(PIC_S_DATA, 0x02);     //ICW3 接主片IR2
     outb(PIC_S_DATA, 0x01);     //ICW4 8086模式,正常EOI
 
-    //全部关闭
+    //屏蔽全部中断
     outb(PIC_M_DATA, 0xff);
     outb(PIC_S_DATA, 0xff);
 }

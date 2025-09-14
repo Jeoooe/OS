@@ -24,7 +24,6 @@
 #define LF 0xa      //新行
 #define CR 0xd      //换行
 
-/* 全局变量 */
 static uint16_t cursor_position = 0;
 static uint16_t screen_position = 0;
 static lock_t lock;
