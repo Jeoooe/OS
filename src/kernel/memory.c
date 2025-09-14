@@ -211,7 +211,7 @@ static void memory_pool_init(uint32_t ards_addr) {
 }
 
 //开启分页
-void memory_init(uint32_t magic, uint32_t ards_addr) {
+void memory_init(uint32_t __, uint32_t ards_addr) {
     LOGK("Memory Init...");
     page_init();
     memory_pool_init(ards_addr);

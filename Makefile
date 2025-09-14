@@ -31,6 +31,7 @@ $(BUILD)/kernel/memory.o \
 $(BUILD)/kernel/bitmap.o \
 $(BUILD)/kernel/thread.o \
 $(BUILD)/kernel/switch.o \
+$(BUILD)/kernel/tss.o \
 
 
 LIB_TARGETS:= \

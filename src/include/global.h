@@ -3,6 +3,22 @@
 
 #include <stdint.h>
 
+#define GDT_BASE 
+
+#define RPL0 0
+#define RPL3 3
+
+#define SELECTOR_K_CODE (1 << 3) | RPL0  
+#define SELECTOR_K_DATA (2 << 3) | RPL0  
+#define SELECTOR_K_TSS  (3 << 3) | RPL0         
+#define SELECTOR_U_CODE (4 << 3) | RPL3
+#define SELECTOR_U_DATA (5 << 3) | RPL3
+
+
+#define GDT_ATTR_HIGH           0b11000000
+#define GDT_CODE_ATTR_LOW_DPL3  0b11111000
+#define GDT_DAYA_ATTR_LOW_DPL3  0b11110010
+
 typedef struct descriptor_ptr {
     uint16_t limit;
     uint32_t base;

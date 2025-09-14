@@ -103,7 +103,7 @@ protect_mode:
     mov bl, 200           ;扇区数量 
     call read_disk
 
-    mov eax, 799
+    mov eax, gdt_base
     mov ebx, ards_count
 
     jmp dword code_selector:0x10000
