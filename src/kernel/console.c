@@ -6,6 +6,8 @@
 
 #define MEM_BASE 0xb8000
 #define MEM_END 0xc0000
+#define V_MEM_BASE (MEM_BASE | 0xc0000000)
+#define V_MEM_END (MEM_END | 0xc0000000)
 #define CURSOR_MAX 2000
 #define SCREEN_WIDTH 80
 #define SCREEN_HEIGHT 25
@@ -29,6 +31,7 @@ static uint16_t screen_position = 0;
 static lock_t lock;
 
 #define ADDR (MEM_BASE + (cursor_position + screen_position) * 2)
+#define V_ADDR (V_MEM_BASE + (cursor_position + screen_position) * 2)
 
 //设置光标位置
 static inline void set_cursor() {
@@ -48,8 +51,8 @@ static inline void set_screen() {
 
 //清除屏幕
 static inline void erase_screen() {
-    uint16_t *ptr = (uint16_t *)MEM_BASE;
-    for (;ptr != MEM_END;) {
+    uint16_t *ptr = (uint16_t *)V_MEM_BASE;
+    for (;ptr != V_MEM_END;) {
         *ptr++ = 0;
     }
 }
@@ -64,7 +67,7 @@ static inline void scroll_up() {
         screen_position = 0;
     }
     //将下一行清空
-    uint16_t *ptr = (uint16_t*)(MEM_BASE + screen_position * 
+    uint16_t *ptr = (uint16_t*)(V_MEM_BASE + screen_position * 
         2 + (SCREEN_HEIGHT - 1) * SCREEN_WIDTH * 2);
     for (int i = 0;i < SCREEN_WIDTH;i++,ptr++) {
         *ptr = 0;
@@ -92,7 +95,7 @@ static void console_write_one(uint8_t ch) {
     switch (ch) {
     case BS:    //退格
         cursor_position--;
-        ptr = (uint16_t *)ADDR;
+        ptr = (uint16_t *)V_ADDR;
         *ptr = 0;
         break;
     case CR:
@@ -100,7 +103,7 @@ static void console_write_one(uint8_t ch) {
         command_cr();
         break;
     default:    //正常字符
-        ptr = (uint16_t *)ADDR;
+        ptr = (uint16_t *)V_ADDR;
         *ptr++ = (0x07 << 8) | (uint8_t)ch;
         cursor_position ++;
     }
