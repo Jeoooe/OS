@@ -86,6 +86,7 @@ error:
 
 ;进入了保护模式
 [bits 32]
+PAGE_DIR_TABLE_POS equ 0x100000
 protect_mode:
     ;初始化段寄存器
     mov ax, data_selector
@@ -97,6 +98,23 @@ protect_mode:
 
     mov esp, 0x10000;栈顶
 
+    ;先分页
+    call page_init
+    mov eax, PAGE_DIR_TABLE_POS
+    mov cr3, eax
+    ;开启分页
+    mov eax, cr0
+    or eax, 0x80000000
+    mov cr0, eax
+    ;gdt更改为内核高地址
+    sgdt [gdt_ptr]
+    add dword [gdt_ptr + 2], 0xc0000000
+    lgdt [gdt_ptr]
+    ;更改栈顶为高地址
+    mov eax, 0xc0010000
+    mov esp, eax
+
+
     ;读取内核
     mov edi, 0x10000     ;把内核读取到内存0x10000 
     mov ecx, 10          ;内核起始扇区
@@ -106,11 +124,51 @@ protect_mode:
     mov eax, gdt_base
     mov ebx, ards_count
 
-    jmp dword code_selector:0x10000
+    jmp dword code_selector:0xc0010000
 
     ud2         ;表示出错
 
 jmp $
+
+
+
+page_init:
+    mov ecx, 4096
+    mov esi, 0
+.clear_pd:
+    mov byte [PAGE_DIR_TABLE_POS + esi], 0
+    inc esi
+    loop .clear_pd
+.create_pde:
+    mov eax, PAGE_DIR_TABLE_POS
+    add eax, 0x1000
+    mov ebx, eax
+    or eax, 0b111
+    mov [PAGE_DIR_TABLE_POS], eax
+    mov [PAGE_DIR_TABLE_POS + 0xc00], eax
+    sub eax, 0x1000
+    mov [PAGE_DIR_TABLE_POS + 4092], eax
+    mov ecx, 256
+    mov esi, 0
+    mov edx, 0b111
+.create_pte:
+    mov [ebx + esi * 4], edx
+    add edx, 4096
+    inc esi
+    loop .create_pte
+
+    mov eax, PAGE_DIR_TABLE_POS
+    add eax, 0x2000
+    or eax, 0b111 
+    mov ebx, PAGE_DIR_TABLE_POS
+    mov ecx, 254
+    mov esi, 769
+.create_kernel_pde:
+    mov [ebx + esi * 4], eax
+    inc esi
+    add eax, 0x1000
+    loop .create_kernel_pde
+    ret
 
 read_disk:
     mov dx, 0x1f2
