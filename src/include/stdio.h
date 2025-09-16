@@ -3,6 +3,14 @@
 
 #include <stdarg.h>
 
+enum fd_t {
+    stdin,
+    stdout,
+    stderr,
+};
+
 int vsprintf(char* buf, const char* fmt, va_list args);
+
+int printf(const char* fmt, ...);
 
 #endif

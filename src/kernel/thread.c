@@ -64,7 +64,6 @@ void schedule() {
 }
 
 static void kernel_thread(thread_func function, void* func_arg) {
-    BMB;
     set_interrupt_state(true);  //开中断
     function(func_arg);
 }

@@ -55,7 +55,6 @@ void page_dir_activate(task_block_t *task) {
     if (task->pd_addr != 0) {
         pagedir_paddr = addr_v2p(task->pd_addr);
     }
-    // BMB;
     asm volatile("movl %0, %%cr3"::"r"(pagedir_paddr):"memory");
 }
 

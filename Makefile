@@ -46,6 +46,7 @@ $(BUILD)/device/ring.o \
 
 USERPROG_TARGETS:= \
 $(BUILD)/userprog/process.o \
+$(BUILD)/userprog/printf.o \
 
 ALL_TARGETS:= $(KERNEL_TARGETS) $(LIB_TARGETS) $(DEVICE_TARGETS) $(USERPROG_TARGETS)
 

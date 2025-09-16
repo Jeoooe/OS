@@ -19,12 +19,16 @@ extern void syscall_init();
 int ar1 = 0, ar2 = 0;
 void u_th1() {
     ar1 = getpid();
-    while (1) ;
+    while (1) {
+        printf("%d", ar1);
+    }
 }
 
 void u_th2() {
     ar2 = getpid();
-    while (1) ;
+    while (1) {
+        printf("%d", ar2);
+    }
 }
 void k_th1() {
     while(1) {
