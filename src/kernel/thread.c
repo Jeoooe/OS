@@ -5,6 +5,7 @@
 #include <interrupt.h>
 #include <assert.h>
 #include <debug.h>
+#include <mutex.h>
 
 #define MAX_THREAD_COUNT 64
 
@@ -13,15 +14,21 @@ list_t ready_task_list;
 
 task_block_t* all_threads[MAX_THREAD_COUNT];
 
+lock_t pid_lock;
+
 //获取一个空的任务
 task_block_t* get_free_task() {
+    lock_acquire(&pid_lock);
     for (int i = 0;i < MAX_THREAD_COUNT;i++) {
         if (all_threads[i] != NULL) 
             continue;
         all_threads[i] = get_kpages(1);
         memset(all_threads[i], 0, sizeof(task_block_t));
+        all_threads[i]->pid = i;
+        lock_release(&pid_lock);
         return all_threads[i];
     }
+    lock_release(&pid_lock);
     return NULL;
 }
 
@@ -144,5 +151,6 @@ static void task_setup() {
 void task_init() {
     /* 将主线程加入 */
     list_init(&ready_task_list);
+    lock_init(&pid_lock);
     task_setup();    
 }

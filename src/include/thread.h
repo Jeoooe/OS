@@ -9,6 +9,7 @@
 #include <list.h>
 #include <bitmap.h>
 
+typedef int16_t pid_t;
 typedef void (*thread_func)(void*);
 
 typedef enum task_status {
@@ -43,6 +44,7 @@ typedef struct task_stack_t {
 //内核PCB
 typedef struct task_block_t {
     uint32_t* self_kstack;  //线程在内核态下运行时使用的栈
+    pid_t pid;
     task_status status;
     char name[16];
     uint8_t priority;

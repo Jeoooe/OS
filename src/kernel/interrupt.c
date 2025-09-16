@@ -6,7 +6,7 @@
 #include <global.h>
 #include <assert.h>
 
-#define INTR_DESC_COUNT 0x30
+#define INTR_DESC_COUNT 0x81
 
 #define PIC_M_CTRL 0x20 //主片控制端口
 #define PIC_M_DATA 0x21 //主片数据端口
@@ -105,11 +105,15 @@ void create_idt_desc(interrupt_desc_t *desc, uint8_t attr, intr_handler handler)
 }
 
 //初始化中断描述符表
+extern uint32_t syscall_handler();
 static void idt_desc_init() {
     int i;
-    for (i = 0;i < INTR_DESC_COUNT;i++) {
+    // for (i = 0;i < INTR_DESC_COUNT;i++) {
+    for (i = 0;i < 0x30;i++) {  //仅有0x30个中断
         create_idt_desc(&idt[i], 0b10001110, handler_entry_table[i]);
     }
+    //以及系统调用
+    create_idt_desc(&idt[0x80], 0b11101110, syscall_handler);
 }
 
 //初始化中断控制器

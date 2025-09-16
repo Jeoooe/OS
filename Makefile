@@ -28,11 +28,11 @@ $(BUILD)/kernel/interrupt.o \
 $(BUILD)/kernel/interrupt_handler.o \
 $(BUILD)/kernel/timer.o \
 $(BUILD)/kernel/memory.o \
-$(BUILD)/kernel/gdt.o \
 $(BUILD)/kernel/bitmap.o \
 $(BUILD)/kernel/thread.o \
 $(BUILD)/kernel/switch.o \
 $(BUILD)/kernel/tss.o \
+$(BUILD)/kernel/syscall.o \
 
 
 LIB_TARGETS:= \

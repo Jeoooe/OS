@@ -137,3 +137,28 @@ handler_entry_table:
     dd interrupt_handler_0x2d 
     dd interrupt_handler_0x2e 
     dd interrupt_handler_0x2f 
+
+
+
+;系统调用
+extern syscall_table
+global syscall_handler
+syscall_handler:
+    push 0
+    push ds
+    push es
+    push fs
+    push gs
+    pushad
+
+    push 0x80 ;中断向量号
+
+    push edx
+    push ecx
+    push ebx
+
+    call [syscall_table + eax * 4]
+    add esp, 12
+    
+    mov [esp + 32], eax ;中断栈中eax的位置，作为返回值
+    jmp intr_exit
