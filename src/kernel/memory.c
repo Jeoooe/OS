@@ -5,8 +5,8 @@
 #include <bitmap.h>
 #include <os.h>
 #include <assert.h>
+#include <mutex.h>
 
-#define PDE_BASE 0x100000
 #define INDEX_SIZE PAGE_SIZE / 4
 
 #define MEMORY_BITMAP_BASE  0xc009a000
@@ -21,8 +21,9 @@
 #define PDE_INDEX(vaddr) (vaddr >> 22)
 #define PTE_INDEX(vaddr) ((vaddr >> 12) & 0x3ff)
 
-bitmap_t kernel_pool, user_pool;    //物理内存池
+bitmap_t kernel_pool, user_pool;         //物理内存池    
 bitmap_t kernel_vaddr_pool;              //虚拟地址池 为保证虚拟地址连续
+lock_t kernel_lock, user_lock;           //两个物理内存池对应的锁
 
 static inline uint32_t* get_pde_ptr(uint32_t vaddr) {
     return (uint32_t *)(0xfffff000 | (PDE_INDEX(vaddr)<<2));
@@ -45,7 +46,7 @@ static uint32_t get_vaddr(bitmap_t *pool, uint32_t cnt) {
     return (pool->offset + index * PAGE_SIZE);
 }
 
-//从内存池中申请物理页
+//从内存池中申请物理页返回页物理地址 失败返回0
 static uint32_t get_phy_page(bitmap_t *pool) {
     uint32_t index = bitmap_scan(pool, 1);
     if (index == -1) {
@@ -55,19 +56,20 @@ static uint32_t get_phy_page(bitmap_t *pool) {
     return (pool->offset + index * PAGE_SIZE);
 }
 
-//映射虚拟地址和物理地址(必须是页开头)
+//映射虚拟地址和物理地址(物理地址必须是页开头)
 static void link_vaddr(uint32_t vaddr, uint32_t paddr) {
     assert((paddr & 0xfff) == 0);
     //先获取页目录项
     uint32_t *pde = get_pde_ptr(vaddr);
+    uint32_t *pte = get_pte_ptr(vaddr);
     if ((*pde & 1) == 0) {
         //该页表不存在
         uint32_t pte_page = get_phy_page(&kernel_pool);
         *pde = pte_page | 0b111;
-        memset((void*)pte_page, 0, PAGE_SIZE);
+        memset((void*)((int)pte & 0xfffff000), 0, PAGE_SIZE);
     }
     //再获取页表项
-    uint32_t *pte = get_pte_ptr(vaddr);
+    
     //此页应该不存在
     assert(!((*pte) & 1));
     *pte = paddr | 0b111;
@@ -75,10 +77,11 @@ static void link_vaddr(uint32_t vaddr, uint32_t paddr) {
 
 //申请连续虚拟页
 void* get_page(pool_flag flag, uint32_t cnt) {
-    bitmap_t *vaddr_pool = &kernel_vaddr_pool;
+    bitmap_t *vaddr_pool = (flag == PF_KERNEL) ? &kernel_vaddr_pool : &running_task()->vaddr_pool;
     bitmap_t *phy_pool = (flag == PF_KERNEL) ? &kernel_pool : &user_pool;
+    uint32_t vaddr_start;
     //获取连续虚拟地址
-    uint32_t vaddr_start = get_vaddr(vaddr_pool, cnt);
+    vaddr_start = get_vaddr(vaddr_pool, cnt);
     if (vaddr_start == 0) {
         return NULL;
     }
@@ -97,49 +100,95 @@ void* get_page(pool_flag flag, uint32_t cnt) {
 
 //获取内存页
 void* get_kpages(uint32_t page_count) {
+    lock_acquire(&kernel_lock);
     void* vaddr = get_page(PF_KERNEL, page_count);
     if (vaddr == NULL) return NULL;
+    lock_release(&kernel_lock);
     return vaddr;
 }
+
+void* get_upages(uint32_t page_count) {
+    lock_acquire(&user_lock);
+    void* vaddr = get_page(PF_USER, page_count);
+    if (vaddr == NULL) return NULL;
+    lock_release(&user_lock);
+    return vaddr;
+}
+
+void* get_a_page(pool_flag flag, uint32_t vaddr) {
+    bitmap_t* mem_pool = (flag == PF_KERNEL) ? &kernel_pool : &user_pool;
+    lock_t *lock = (flag == PF_KERNEL) ? &kernel_lock : &user_lock;
+    lock_acquire(lock);
+
+    task_block_t *cur = running_task();
+    int idx = -1;
+    assert((cur->pd_addr != 0 && flag == PF_USER) ||
+            (cur->pd_addr == 0 && flag == PF_KERNEL));
+    
+    if (flag == PF_USER) {
+        idx = (vaddr - cur->vaddr_pool.offset) / PAGE_SIZE;
+        bitmap_set(&cur->vaddr_pool, idx, true);
+    }
+    else {
+        idx = (vaddr - kernel_pool.offset) / PAGE_SIZE;
+        bitmap_set(&kernel_pool, idx, true);
+    }
+    
+    uint32_t paddr = get_phy_page(mem_pool);
+    if (paddr == 0) 
+        return NULL;
+    
+    link_vaddr(vaddr, paddr);
+
+
+    lock_release(lock);
+    return (void *)vaddr;
+}
+
 
 void set_cr3(uint32_t pde) {
     asm volatile("movl %%eax, %%cr3"::"a"(pde));
 }
 
-static void page_init() {
-    const uint32_t attr = 0b111;
-    uint32_t *pde = (uint32_t *)PDE_BASE;
-    uint32_t* pte;
-    int i, addr;
-    //清空页目录的内存
-    memset(pde, 0, PAGE_SIZE);
-    //设定首个页表和最后一个页表
-    pde[0] = (PDE_BASE + PAGE_SIZE) | attr;
-    pde[INDEX_SIZE - 1] = PDE_BASE | attr;
-
-    //创建第一个页表
-    pte = (uint32_t*)(PDE_BASE + PAGE_SIZE);
-    for (i = 0; i < PDE_BASE / PAGE_SIZE;i++) {
-        pte[i] = INDEX_TO_ADDR(i) | attr;
-    }
-
-    //映射内核内存空间
-    //高1GB
-    addr = (PDE_BASE + PAGE_SIZE) | attr;
-    for (i = 0;i < 255;i++) {
-        pde[i + 768] = addr;
-        addr += 0x1000;
-    }
-
-    //赋值cr3
-    set_cr3((uint32_t)pde);
-    //设置cr0
-    asm volatile(
-        "movl %cr0, %eax\n"
-        "orl $0x80000000, %eax\n"
-        "movl %eax, %cr0"
-    );
+uint32_t addr_v2p(uint32_t vaddr) {
+    uint32_t *pte = get_pte_ptr(vaddr);
+    return ((*pte & 0xfffff000) + (vaddr & 0xfff));
 }
+
+// static void page_init() {
+//     const uint32_t attr = 0b111;
+//     uint32_t *pde = (uint32_t *)PDIR_BASE;
+//     uint32_t* pte;
+//     int i, addr;
+//     //清空页目录的内存
+//     memset(pde, 0, PAGE_SIZE);
+//     //设定首个页表和最后一个页表
+//     pde[0] = (PDIR_BASE + PAGE_SIZE) | attr;
+//     pde[INDEX_SIZE - 1] = PDIR_BASE | attr;
+
+//     //创建第一个页表
+//     pte = (uint32_t*)(PDIR_BASE + PAGE_SIZE);
+//     for (i = 0; i < PDIR_BASE / PAGE_SIZE;i++) {
+//         pte[i] = INDEX_TO_ADDR(i) | attr;
+//     }
+
+//     //映射内核内存空间
+//     //高1GB
+//     addr = (PDIR_BASE + PAGE_SIZE) | attr;
+//     for (i = 0;i < 255;i++) {
+//         pde[i + 768] = addr;
+//         addr += 0x1000;
+//     }
+
+//     //赋值cr3
+//     set_cr3((uint32_t)pde);
+//     //设置cr0
+//     asm volatile(
+//         "movl %cr0, %eax\n"
+//         "orl $0x80000000, %eax\n"
+//         "movl %eax, %cr0"
+//     );
+// }
 
 static void memory_pool_init(uint32_t ards_addr) {
     LOGK("POOL Init...");
@@ -213,6 +262,8 @@ static void memory_pool_init(uint32_t ards_addr) {
 //开启分页
 void memory_init(uint32_t __, uint32_t ards_addr) {
     LOGK("Memory Init...");
-    page_init();
+    // page_init();
     memory_pool_init(ards_addr);
+    lock_init(&kernel_lock);
+    lock_init(&user_lock);
 }

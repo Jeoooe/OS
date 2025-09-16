@@ -24,7 +24,7 @@ typedef struct interrupt_stack_t {
     uint32_t edi;
     uint32_t esi;
     uint32_t ebp;
-    uint32_t esp_dummy;
+    uint32_t esp_dummy; 
     uint32_t ebx;
     uint32_t edx;
     uint32_t ecx;
@@ -38,7 +38,7 @@ typedef struct interrupt_stack_t {
     void (*eip)(void);
     uint32_t cs;
     uint32_t eflags;
-    void* esp;
+    uint32_t esp;
     uint32_t ss;
 } interrupt_stack_t;
 

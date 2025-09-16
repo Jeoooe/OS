@@ -25,6 +25,7 @@ interrupt_handler_%1:
     jmp intr_exit
 %endmacro
 
+global intr_exit
 intr_exit:
     add esp, 4  ;跳过中断号
     popad
