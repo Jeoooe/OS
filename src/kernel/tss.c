@@ -84,7 +84,6 @@ void tss_init() {
     
     //六个描述符
     gdt_ptr.limit = (8 * 6) - 1;
-    BMB;
     asm volatile("lgdt %0" :: "m"(gdt_ptr));
     asm volatile("ltr %w0" :: "r"(SELECTOR_K_TSS));
 }

@@ -7,31 +7,25 @@
 #include <interrupt.h>
 #include <memory.h>
 #include <thread.h>
+#include <userprog.h>
 
 extern void interrupt_init();
 extern void timer_init();
 extern void task_init();
 extern void keyboard_init();
 
-#include <keyboard.h>
-void tmp1(void* arg) {
-    char* para = (char*) arg;
-    while (1) {
-        interrupt_disable();
-        if (!ring_empty(&kb_buf)) {
-            char ch = io_ring_getchar(&kb_buf);
-            console_write(&ch, 1);
-        }
-        interrupt_enable();
+int ar1 = 0, ar2 = 0;
+void u_th1() {
+    while (1) ar1++;
+}
+void u_th2() {
+    while (1) ar2++;
+}
+void k_th1() {
+    while(1) {
+        printk("%d", ar1);
     }
 }
-
-// void tmp2(void* arg) {
-//     char* para = (char*) arg;
-//     while (1) {
-//         printk(para);
-//     }
-// }
 
 void kernel_main() {
     LOGK("Kernel Init...", MAGIC);
@@ -39,10 +33,13 @@ void kernel_main() {
     timer_init();
     task_init();
     keyboard_init();
-    task_create("k_thread_1", 31, tmp1, "YB");
     // task_create("k_thread_2", 8, tmp2, "HELLOO");
+    
+    task_create("k1", 31, k_th1, 0);
+    process_execute(u_th1, "u1");
+    // process_execute(u_th2, "u2");
 
-    interrupt_mask(INTERRUPT_KEYBOARD, true);
+    // interrupt_mask(INTERRUPT_KEYBOARD, true);
     interrupt_mask(INTERRUPT_TIMER, true);
     set_interrupt_state(true);
 
