@@ -21,7 +21,6 @@ $(BUILD)/kernel/main.o \
 $(BUILD)/kernel/io.o \
 $(BUILD)/kernel/console.o \
 $(BUILD)/kernel/printk.o \
-$(BUILD)/kernel/vsprintf.o \
 $(BUILD)/kernel/assert.o \
 $(BUILD)/kernel/debug.o \
 $(BUILD)/kernel/interrupt.o \
@@ -34,10 +33,12 @@ $(BUILD)/kernel/thread.o \
 $(BUILD)/kernel/switch.o \
 $(BUILD)/kernel/tss.o \
 $(BUILD)/kernel/syscall.o \
+$(BUILD)/kernel/stdlib.o \
 
 
 LIB_TARGETS:= \
 $(BUILD)/lib/string.o \
+$(BUILD)/lib/vsprintf.o \
 $(BUILD)/lib/list.o \
 $(BUILD)/lib/mutex.o \
 

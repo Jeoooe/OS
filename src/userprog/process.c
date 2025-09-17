@@ -101,12 +101,14 @@ extern list_t ready_task_list;
 extern void task_block_init(task_block_t* task, char* name, int priority);
 extern void task_stack_init(task_block_t* task, thread_func function, void* func_arg);
 extern task_block_t* get_free_task();
+
 void process_execute(void *filename, char* name) {
     task_block_t* task = get_free_task();
     task_block_init(task, name, DEFAULT_PRIO);
     create_user_vaddr_bitmap(task);
     task_stack_init(task, start_process, filename);
     task->pd_addr = create_page_dir();
+    block_desc_init(task->u_block_descs);
 
     bool state = interrupt_disable();
     list_pushback(&ready_task_list, &task->node);

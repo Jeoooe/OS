@@ -6,6 +6,7 @@
 #include <os.h>
 #include <assert.h>
 #include <mutex.h>
+#include <interrupt.h>
 
 #define INDEX_SIZE PAGE_SIZE / 4
 
@@ -24,7 +25,17 @@
 typedef struct memory_pool_t {
     bitmap_t bmap;
     lock_t lock;
+    uint32_t pool_size;
 } memory_pool_t;
+
+typedef struct arena_t {
+    memory_block_desc_t* desc;
+    /* large == true, cnt为页框数, 否则为空闲memory_block数 */
+    uint32_t cnt;
+    bool large; //是否大于1024字节
+} arena_t;
+
+memory_block_desc_t k_block_descs[MEMORY_DESC_CNT];
 
 // bitmap_t kernel_pool, user_pool;         //物理内存池    
 // bitmap_t kernel_vaddr_pool;              //虚拟地址池 为保证虚拟地址连续
@@ -39,6 +50,9 @@ static inline uint32_t* get_pde_ptr(uint32_t vaddr) {
 static inline uint32_t* get_pte_ptr(uint32_t vaddr) {
     return (uint32_t *)(0xffc00000 | ((PDE_INDEX(vaddr) << 12) | ((PTE_INDEX(vaddr) << 2))));
 }
+
+/* 内存申请
+ */
 
 //获取连续虚拟地址
 static uint32_t get_vaddr(bitmap_t *pool, uint32_t cnt) {
@@ -152,6 +166,71 @@ void* get_a_page(pool_flag flag, uint32_t vaddr) {
     return (void *)vaddr;
 }
 
+/* 内存释放
+*/
+
+//释放物理地址paddr的页框
+static void phy_free(uint32_t paddr) {
+    assert((paddr & 0xfff) == 0);
+    memory_pool_t* mem_pool;
+    uint32_t bit_index = 0;
+    if (paddr >= user_pool.bmap.offset) { //用户物理内存
+        mem_pool = &user_pool;
+    }
+    else {  //内核物理内存
+        mem_pool = &kernel_pool;
+    }
+    bit_index = (paddr - mem_pool->bmap.offset) / PAGE_SIZE;
+    bitmap_set(&mem_pool->bmap, bit_index, false);
+}
+
+//去掉vaddr的映射, 仅去除pte
+static void unlink_vaddr(uint32_t vaddr) {
+    uint32_t *pte = get_pte_ptr(vaddr);
+    *pte &= ~(1);
+    asm volatile("invlpg %0"::"m"(vaddr):"memory");  //更新快表
+}
+
+//释放vaddr连续pg_cnt个虚拟页的地址
+static void vaddr_remove(pool_flag pf, uint32_t vaddr, uint32_t pg_cnt) {
+    uint32_t bit_index_start = 0, cnt = 0;
+    vaddr_pool_t *v_pool;
+    if (pf == PF_KERNEL) {
+        v_pool = &kernel_vaddr_pool;
+    }
+    else {
+        task_block_t* cur = running_task();
+        v_pool = &cur->vaddr_pool;
+    }
+    bit_index_start = (vaddr - v_pool->bmap.offset) / PAGE_SIZE;
+    for (;cnt < pg_cnt;cnt++) {
+        bitmap_set(&v_pool->bmap, bit_index_start + cnt, false);
+    }
+}
+
+
+void free_page(pool_flag pf, uint32_t vaddr, uint32_t pg_cnt) {
+    uint32_t paddr, page_cnt = 0;
+    assert(pg_cnt >= 1 && ((vaddr & 0xfff) == 0));
+    paddr = addr_v2p(vaddr);
+
+    //是页框并且在1M + 1k页目录 + 1k页表外
+    assert((paddr & 0xfff) == 0 && paddr >= 0x102000);
+    // memory_pool_t* mp;
+    // if (paddr >= user_pool.bmap.offset) mp = &user_pool;
+    // else mp = &kernel_pool;
+    vaddr -= PAGE_SIZE;
+
+    for (;page_cnt < pg_cnt; page_cnt++) {
+        vaddr += PAGE_SIZE;
+        paddr = addr_v2p(vaddr);
+        phy_free(paddr);
+        unlink_vaddr(vaddr);
+    }
+    vaddr_remove(pf, vaddr, pg_cnt);
+}
+
+
 
 void set_cr3(uint32_t pde) {
     asm volatile("movl %%eax, %%cr3"::"a"(pde));
@@ -161,6 +240,9 @@ uint32_t addr_v2p(uint32_t vaddr) {
     uint32_t *pte = get_pte_ptr(vaddr);
     return ((*pte & 0xfffff000) + (vaddr & 0xfff));
 }
+
+
+/* 初始化相关 */
 
 // static void page_init() {
 //     const uint32_t attr = 0b111;
@@ -236,8 +318,8 @@ static void memory_pool_init(uint32_t ards_addr) {
     const uint32_t user_start_addr = kernel_start_addr + kernel_free_pages * PAGE_SIZE; 
 
     //内存池大小
-    // const uint32_t kernel_size = kernel_free_pages * PAGE_SIZE;
-    // const uint32_t user_size = user_free_pages * PAGE_SIZE;
+    kernel_pool.pool_size = kernel_free_pages * PAGE_SIZE;
+    user_pool.pool_size = user_free_pages * PAGE_SIZE;
 
     //位图大小
     const uint32_t kernel_bit_length = kernel_free_pages >> 3;
@@ -266,11 +348,158 @@ static void memory_pool_init(uint32_t ards_addr) {
     
 }
 
+void block_desc_init(memory_block_desc_t* desc_array) {
+    uint16_t i, block_size = 16;    //字节数
+    for (i = 0;i < MEMORY_DESC_CNT;i++) {
+        desc_array[i].block_size = block_size;
+        desc_array[i].blocks_per_arena = (PAGE_SIZE - sizeof(arena_t)) / block_size;
+
+        list_init(&desc_array[i].free_list);
+        block_size <<= 1;
+    }
+}
+
 //开启分页
 void memory_init(uint32_t __, uint32_t ards_addr) {
     LOGK("Memory Init...");
     // page_init();
     memory_pool_init(ards_addr);
+    block_desc_init(k_block_descs);
     lock_init(&kernel_pool.lock);
     lock_init(&user_pool.lock);
+}
+
+
+
+
+/* 
+ *  系统调用
+ */
+
+static memory_block_t* arena2block(arena_t* a, uint32_t idx) {
+    return (memory_block_t*) ((uint32_t)a + sizeof(arena_t) + 
+    idx * a->desc->block_size);
+}
+
+static arena_t* block2arena(memory_block_t* b) {
+    return (arena_t *)((uint32_t)b & 0xfffff000);
+}
+
+void* sys_malloc(uint32_t size) {
+    pool_flag pf;
+    memory_pool_t *mem_pool;
+    uint32_t pool_size;
+    memory_block_desc_t *descs;
+    task_block_t *task = running_task();
+
+    if (task->pd_addr == 0) {
+        //内核线程
+        pf = PF_KERNEL;
+        pool_size = kernel_pool.pool_size;
+        mem_pool = &kernel_pool;
+        descs = k_block_descs;
+    } 
+    else {
+        pf = PF_USER;
+        pool_size = user_pool.pool_size;
+        mem_pool = &user_pool;
+        descs = task->u_block_descs;
+    }
+
+    if (size < 0 || size > pool_size) {
+        return NULL;
+    }
+
+    arena_t *a;
+    memory_block_t *b;
+    lock_t *lock = &mem_pool->lock;
+    lock_acquire(lock);
+
+    //大内存块
+    if (size > 1024) {
+        uint32_t page_cnt = DIV_ROUND_UP(size + sizeof(arena_t), PAGE_SIZE);
+        a = get_page(pf, page_cnt);
+
+        if (a == NULL) {
+            lock_release(lock);
+            return NULL;
+        }
+
+        a->desc = NULL;
+        a->cnt = page_cnt;
+        a->large = true;
+        lock_release(lock);
+        return (void*)(a + 1);
+    }
+    //小块内存
+    int i;
+    for (i = 0;i < MEMORY_DESC_CNT;i++) {
+        if (size <= descs[i].block_size) break;
+    }
+
+    //空闲列表无了
+    if (list_empty(&descs[i].free_list)) {
+        a = get_page(pf, 1);
+        if (a == NULL) {
+            //没内存了
+            lock_release(lock);
+            return NULL;
+        }
+        a->desc = &descs[i];
+        a->cnt = descs[i].blocks_per_arena;
+        a->large = false;
+
+        bool state = interrupt_disable();
+
+        //新arena拆分内存块
+        for (int j = 0;j < descs[i].blocks_per_arena;j++) {
+            b = arena2block(a, j);
+            list_pushback(&a->desc->free_list, &b->node);
+        }
+        set_interrupt_state(state);
+    }
+    list_node_t* block_node = list_pop(&descs[i].free_list);
+    b = element_entry(memory_block_t, node, block_node);
+
+    a = block2arena(b);
+    a->cnt--;
+    lock_release(lock);
+    return (void*)b;
+}
+
+
+void sys_free(void* ptr) {
+    assert(ptr != NULL);
+    pool_flag pf;
+    memory_pool_t* mem_pool;
+    if (running_task()->pd_addr == 0) {
+        assert((uint32_t)ptr >= KERNEL_HEAP_START);
+        pf = PF_KERNEL;
+        mem_pool = &kernel_pool;
+    }
+    else {
+        pf = PF_USER;
+        mem_pool = &user_pool;
+    }
+
+    lock_acquire(&mem_pool->lock);
+    memory_block_t* b = ptr;
+    arena_t* a = block2arena(b);
+
+    if (a->desc == NULL && a->large == true) {
+        //大于1024内存
+        free_page(pf, (uint32_t)a, a->cnt);
+    }
+    else {
+        list_pushback(&a->desc->free_list, &b->node);
+        a->cnt++;
+        if (a->cnt == a->desc->blocks_per_arena) {
+            for (uint32_t i = 0;i < a->desc->blocks_per_arena;i++) {
+                memory_block_t* blk = arena2block(a, i);
+                list_remove(&blk->node);
+            }
+            free_page(pf, (uint32_t)a, 1);
+        }
+    }
+    lock_release(&mem_pool->lock);
 }

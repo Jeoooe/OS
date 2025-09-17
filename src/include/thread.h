@@ -54,6 +54,7 @@ typedef struct task_block_t {
     list_node_t node;
     uint32_t pd_addr;  //进程的页表地址
     vaddr_pool_t vaddr_pool;    //进程虚拟地址池
+    memory_block_desc_t u_block_descs[MEMORY_DESC_CNT]; //用户进程的内存块描述符
     uint32_t magic;
 } task_block_t;
 
