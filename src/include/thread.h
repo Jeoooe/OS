@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <list.h>
 #include <bitmap.h>
+#include <memory.h>
 
 typedef int16_t pid_t;
 typedef void (*thread_func)(void*);
@@ -52,7 +53,7 @@ typedef struct task_block_t {
     uint32_t elapsed_ticks;
     list_node_t node;
     uint32_t pd_addr;  //进程的页表地址
-    bitmap_t vaddr_pool;    //进程虚拟地址池
+    vaddr_pool_t vaddr_pool;    //进程虚拟地址池
     uint32_t magic;
 } task_block_t;
 

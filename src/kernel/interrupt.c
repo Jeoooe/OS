@@ -52,31 +52,31 @@ void set_interrupt_state(bool state) {
     }
 }
 //获取中断状态
-bool get_interrupt_state() {
-    asm volatile(
-    "pushfl\n"
-    "popl %eax\n"
-    "shrl $9, %eax\n"
-    "andl $1, %eax");
-}
-bool interrupt_disable() {
-    asm volatile(
-    "pushfl\n"
-    "popl %eax\n"
-    "cli\n"
-    "shrl $9, %eax\n"
-    "andl $1, %eax"
-    );
-}
-bool interrupt_enable() {
-    asm volatile(
-    "pushfl\n"
-    "popl %eax\n"
-    "sti\n"
-    "shrl $9, %eax\n"
-    "andl $1, %eax"
-    );
-}
+// bool get_interrupt_state() {
+//     asm volatile(
+//     "pushfl\n"
+//     "popl %eax\n"
+//     "shrl $9, %eax\n"
+//     "andl $1, %eax");
+// }
+// bool interrupt_disable() {
+//     asm volatile(
+//     "pushfl\n"
+//     "popl %eax\n"
+//     "cli\n"
+//     "shrl $9, %eax\n"
+//     "andl $1, %eax"
+//     );
+// }
+// bool interrupt_enable() {
+//     asm volatile(
+//     "pushfl\n"
+//     "popl %eax\n"
+//     "sti\n"
+//     "shrl $9, %eax\n"
+//     "andl $1, %eax"
+//     );
+// }
 
 void interrupt_mask(interrupt_type_e type, bool mask) {
     assert(type >= 0 && type <= 8);

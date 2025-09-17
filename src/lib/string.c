@@ -108,4 +108,5 @@ void *memchr(const void *str, int ch, size_t count) {
         ++ptr;
         --count;
     }
+    return NULL;
 }

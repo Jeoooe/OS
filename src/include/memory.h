@@ -6,11 +6,16 @@
 #define PDIR_BASE 0x100000
 
 #include <stdint.h>
+#include <bitmap.h>
 
 typedef enum pool_flag {
     PF_KERNEL = 1,
     PF_USER
 } pool_flag;
+
+typedef struct vaddr_pool_t {
+    bitmap_t bmap;
+} vaddr_pool_t;
 
 void set_cr3(uint32_t pde);
 

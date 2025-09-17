@@ -21,9 +21,16 @@
 #define PDE_INDEX(vaddr) (vaddr >> 22)
 #define PTE_INDEX(vaddr) ((vaddr >> 12) & 0x3ff)
 
-bitmap_t kernel_pool, user_pool;         //物理内存池    
-bitmap_t kernel_vaddr_pool;              //虚拟地址池 为保证虚拟地址连续
-lock_t kernel_lock, user_lock;           //两个物理内存池对应的锁
+typedef struct memory_pool_t {
+    bitmap_t bmap;
+    lock_t lock;
+} memory_pool_t;
+
+// bitmap_t kernel_pool, user_pool;         //物理内存池    
+// bitmap_t kernel_vaddr_pool;              //虚拟地址池 为保证虚拟地址连续
+// lock_t kernel_lock, user_lock;           //两个物理内存池对应的锁
+memory_pool_t kernel_pool, user_pool;
+vaddr_pool_t kernel_vaddr_pool;
 
 static inline uint32_t* get_pde_ptr(uint32_t vaddr) {
     return (uint32_t *)(0xfffff000 | (PDE_INDEX(vaddr)<<2));
@@ -64,7 +71,7 @@ static void link_vaddr(uint32_t vaddr, uint32_t paddr) {
     uint32_t *pte = get_pte_ptr(vaddr);
     if ((*pde & 1) == 0) {
         //该页表不存在
-        uint32_t pte_page = get_phy_page(&kernel_pool);
+        uint32_t pte_page = get_phy_page(&kernel_pool.bmap);
         *pde = pte_page | 0b111;
         memset((void*)((int)pte & 0xfffff000), 0, PAGE_SIZE);
     }
@@ -77,18 +84,18 @@ static void link_vaddr(uint32_t vaddr, uint32_t paddr) {
 
 //申请连续虚拟页
 void* get_page(pool_flag flag, uint32_t cnt) {
-    bitmap_t *vaddr_pool = (flag == PF_KERNEL) ? &kernel_vaddr_pool : &running_task()->vaddr_pool;
-    bitmap_t *phy_pool = (flag == PF_KERNEL) ? &kernel_pool : &user_pool;
+    vaddr_pool_t *vaddr_pool = (flag == PF_KERNEL) ? &kernel_vaddr_pool : &running_task()->vaddr_pool;
+    memory_pool_t *phy_pool = (flag == PF_KERNEL) ? &kernel_pool : &user_pool;
     uint32_t vaddr_start;
     //获取连续虚拟地址
-    vaddr_start = get_vaddr(vaddr_pool, cnt);
+    vaddr_start = get_vaddr(&vaddr_pool->bmap, cnt);
     if (vaddr_start == 0) {
         return NULL;
     }
     //映射虚拟地址和物理地址
     uint32_t vaddr = vaddr_start, paddr;
     for (;cnt > 0;cnt--) {
-        paddr = get_phy_page(phy_pool);
+        paddr = get_phy_page(&phy_pool->bmap);
         if (paddr == 0) {
             return NULL;
         }
@@ -100,24 +107,24 @@ void* get_page(pool_flag flag, uint32_t cnt) {
 
 //获取内存页
 void* get_kpages(uint32_t page_count) {
-    lock_acquire(&kernel_lock);
+    lock_acquire(&kernel_pool.lock);
     void* vaddr = get_page(PF_KERNEL, page_count);
     if (vaddr == NULL) return NULL;
-    lock_release(&kernel_lock);
+    lock_release(&kernel_pool.lock);
     return vaddr;
 }
 
 void* get_upages(uint32_t page_count) {
-    lock_acquire(&user_lock);
+    lock_acquire(&user_pool.lock);
     void* vaddr = get_page(PF_USER, page_count);
     if (vaddr == NULL) return NULL;
-    lock_release(&user_lock);
+    lock_release(&user_pool.lock);
     return vaddr;
 }
 
 void* get_a_page(pool_flag flag, uint32_t vaddr) {
-    bitmap_t* mem_pool = (flag == PF_KERNEL) ? &kernel_pool : &user_pool;
-    lock_t *lock = (flag == PF_KERNEL) ? &kernel_lock : &user_lock;
+    memory_pool_t* mem_pool = (flag == PF_KERNEL) ? &kernel_pool : &user_pool;
+    lock_t *lock = &mem_pool->lock;
     lock_acquire(lock);
 
     task_block_t *cur = running_task();
@@ -126,15 +133,15 @@ void* get_a_page(pool_flag flag, uint32_t vaddr) {
             (cur->pd_addr == 0 && flag == PF_KERNEL));
     
     if (flag == PF_USER) {
-        idx = (vaddr - cur->vaddr_pool.offset) / PAGE_SIZE;
-        bitmap_set(&cur->vaddr_pool, idx, true);
+        idx = (vaddr - cur->vaddr_pool.bmap.offset) / PAGE_SIZE;
+        bitmap_set(&cur->vaddr_pool.bmap, idx, true);
     }
     else {
-        idx = (vaddr - kernel_pool.offset) / PAGE_SIZE;
-        bitmap_set(&kernel_pool, idx, true);
+        idx = (vaddr - kernel_pool.bmap.offset) / PAGE_SIZE;
+        bitmap_set(&kernel_pool.bmap, idx, true);
     }
     
-    uint32_t paddr = get_phy_page(mem_pool);
+    uint32_t paddr = get_phy_page(&mem_pool->bmap);
     if (paddr == 0) 
         return NULL;
     
@@ -245,15 +252,15 @@ static void memory_pool_init(uint32_t ards_addr) {
     assert((kernel_start_addr & 0xfff) == 0 && (user_start_addr & 0xfff) == 0);
 
     //初始化位图
-    bitmap_init(&kernel_pool, 
+    bitmap_init(&kernel_pool.bmap, 
         (uint8_t *)MEMORY_BITMAP_BASE, 
         kernel_bit_length, kernel_start_addr);
-    bitmap_init(&user_pool  , 
+    bitmap_init(&user_pool.bmap  , 
         (uint8_t *)(MEMORY_BITMAP_BASE + kernel_bit_length), 
         user_bit_length, user_start_addr);
 
     //虚拟内存池
-    bitmap_init(&kernel_vaddr_pool, 
+    bitmap_init(&kernel_vaddr_pool.bmap, 
         (uint8_t*)(MEMORY_BITMAP_BASE + kernel_bit_length + user_bit_length), 
         kernel_bit_length, KERNEL_HEAP_START);
     
@@ -264,6 +271,6 @@ void memory_init(uint32_t __, uint32_t ards_addr) {
     LOGK("Memory Init...");
     // page_init();
     memory_pool_init(ards_addr);
-    lock_init(&kernel_lock);
-    lock_init(&user_lock);
+    lock_init(&kernel_pool.lock);
+    lock_init(&user_pool.lock);
 }

@@ -46,9 +46,11 @@ void kernel_main() {
     keyboard_init();
     // task_create("k_thread_2", 8, tmp2, "HELLOO");
     
-    task_create("k1", 31, k_th1, 0);
-    process_execute(u_th1, "u1");
-    process_execute(u_th2, "u2");
+    // task_create("k1", 31, k_th1, 0);
+    // process_execute(u_th1, "u1");
+    // process_execute(u_th2, "u2");
+
+    task_block_t *pcb = get_kpages(1);
 
     // interrupt_mask(INTERRUPT_KEYBOARD, true);
     interrupt_mask(INTERRUPT_TIMER, true);

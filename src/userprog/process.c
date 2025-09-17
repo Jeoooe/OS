@@ -93,7 +93,7 @@ void create_user_vaddr_bitmap(task_block_t *user_prog) {
     const uint32_t bitmap_bytes = (0xc0000000 - USER_VADDR_START) / PAGE_SIZE / 8;
     const uint32_t bitmap_pg_cnt = DIV_ROUND_UP(bitmap_bytes, PAGE_SIZE);
     uint8_t* bits = get_kpages(bitmap_pg_cnt);
-    bitmap_init(&user_prog->vaddr_pool, bits, bitmap_bytes, USER_VADDR_START);
+    bitmap_init(&user_prog->vaddr_pool.bmap, bits, bitmap_bytes, USER_VADDR_START);
 }
 
 //创建用户进程
