@@ -3,3 +3,4 @@ build
 log
 
 bx_enh_dbg.ini
+*.img

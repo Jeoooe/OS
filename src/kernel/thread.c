@@ -10,6 +10,7 @@
 #define MAX_THREAD_COUNT 64
 
 task_block_t* main_thread;  //主线程
+task_block_t* idle_thread;  //空闲线程
 list_t ready_task_list;
 
 task_block_t* all_threads[MAX_THREAD_COUNT];
@@ -19,7 +20,7 @@ lock_t pid_lock;
 //获取一个空的任务
 task_block_t* get_free_task() {
     lock_acquire(&pid_lock);
-    for (int i = 0;i < MAX_THREAD_COUNT;i++) {
+    for (int i = 2;i < MAX_THREAD_COUNT;i++) {
         if (all_threads[i] != NULL) 
             continue;
         all_threads[i] = get_kpages(1);
@@ -38,6 +39,19 @@ task_block_t* running_task() {
     return (task_block_t*)(esp & 0xfffff000);
 }
 
+//创建线程或进程后第一次调度会进入此函数 
+static void kernel_thread(thread_func function, void* func_arg) {
+    set_interrupt_state(true);  //开中断
+    function(func_arg);
+}
+
+static void idle(void* arg) {
+    while(1) {
+        asm volatile("sti\nhlt");
+        task_block(TASK_BLOCKED);
+    }
+}
+
 extern void switch_to(task_block_t* cur, task_block_t* next);
 extern void process_activate(task_block_t *task);
 void schedule() {
@@ -52,7 +66,10 @@ void schedule() {
     else {
         /* 其他事件发生 , 不加入READY队列 */ 
     }
-    assert(!list_empty(&ready_task_list));
+    // assert(!list_empty(&ready_task_list));
+    if (list_empty(&ready_task_list)) {
+        task_unblock(idle_thread);
+    }
     list_node_t *next_node = list_pop(&ready_task_list);
     task_block_t *next = element_entry(task_block_t, node, next_node);
     next->status = TASK_RUNNING;
@@ -63,10 +80,16 @@ void schedule() {
     switch_to(cur, next);
 }
 
-static void kernel_thread(thread_func function, void* func_arg) {
-    set_interrupt_state(true);  //开中断
-    function(func_arg);
+void task_yield() {
+    task_block_t* task = running_task();
+    bool state = interrupt_disable();
+    list_pushback(&ready_task_list, &task->node);
+    task->status = TASK_READY;
+    schedule();
+    set_interrupt_state(state);   
 }
+
+
 
 void task_block(task_status status) {
     bool intr_state = interrupt_disable();
@@ -140,6 +163,15 @@ task_block_t* task_create(char* name,
 }
 
 static void task_setup() {
+    /* 空闲进程 */
+    idle_thread = get_kpages(1);
+    memset(idle_thread, 0, sizeof(task_block_t));
+    idle_thread->pid = 0;
+    task_block_init(idle_thread, "idle", 10);
+    task_stack_init(idle_thread, idle, NULL);
+    idle_thread->status = TASK_BLOCKED;
+    all_threads[0] = idle_thread;
+    /* 将主线程加入 */
     main_thread = running_task();
     task_block_init(main_thread, "main", 31);
     main_thread->status = TASK_RUNNING;
@@ -148,7 +180,6 @@ static void task_setup() {
 }
 
 void task_init() {
-    /* 将主线程加入 */
     list_init(&ready_task_list);
     lock_init(&pid_lock);
     task_setup();    

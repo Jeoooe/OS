@@ -6,6 +6,9 @@
 typedef enum interrupt_type_e {
     INTERRUPT_TIMER = 0,
     INTERRUPT_KEYBOARD,
+    INTERRUPT_SLAVE = 2,
+    INTERRUPT_HARDDISK_MASTER = 14,
+    INTERRUPT_HARDDISK_SLAVE = 15,
 } interrupt_type_e;
 
 typedef void* intr_handler;

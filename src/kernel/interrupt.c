@@ -51,40 +51,21 @@ void set_interrupt_state(bool state) {
         asm volatile("cli");
     }
 }
-//获取中断状态
-// bool get_interrupt_state() {
-//     asm volatile(
-//     "pushfl\n"
-//     "popl %eax\n"
-//     "shrl $9, %eax\n"
-//     "andl $1, %eax");
-// }
-// bool interrupt_disable() {
-//     asm volatile(
-//     "pushfl\n"
-//     "popl %eax\n"
-//     "cli\n"
-//     "shrl $9, %eax\n"
-//     "andl $1, %eax"
-//     );
-// }
-// bool interrupt_enable() {
-//     asm volatile(
-//     "pushfl\n"
-//     "popl %eax\n"
-//     "sti\n"
-//     "shrl $9, %eax\n"
-//     "andl $1, %eax"
-//     );
-// }
 
 void interrupt_mask(interrupt_type_e type, bool mask) {
-    assert(type >= 0 && type <= 8);
-    uint8_t flag = inb(PIC_M_DATA);
+    assert(type >= 0);
+    uint16_t port;
+    if (type >= 8) {
+        //从片端口 >= IRQ8
+        port = PIC_S_DATA;
+        type -= 8;
+    } else {
+        port = PIC_M_DATA;
+    }
+    uint8_t flag = inb(port);
     if (!mask) flag |= 1 << type;
     else flag &= ~( 1<< type);
-    outb(PIC_M_DATA, flag); //主片屏蔽
-    // outb(PIC_S_DATA, 0xff); //从片屏蔽
+    outb(port, flag); 
 }
 
 void register_handler(uint8_t vector, intr_handler handler) {

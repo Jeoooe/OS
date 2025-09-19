@@ -67,6 +67,8 @@ task_block_t* running_task();
 //任务调度
 void schedule();
 
+void task_yield();
+
 /* 任务阻塞相关 */
 //阻塞自己
 void task_block(task_status status);

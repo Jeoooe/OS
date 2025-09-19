@@ -47,3 +47,37 @@ outw:
 
     leave
     ret
+
+; global _insw
+; _insw:
+;     push ebp
+;     mov ebp, esp
+;     push edi
+
+;     mov dx, [ebp + 8]
+;     mov di, [ebp + 12]
+;     mov cx, [ebp + 16]
+
+;     cld
+;     rep insw
+
+;     pop edi
+;     leave
+;     ret
+
+; global _outsw
+; _outsw:
+;     push ebp
+;     mov ebp, esp
+;     push esi
+
+;     mov dx, [ebp + 8]
+;     mov si, [ebp + 12]
+;     mov cx, [ebp + 16]
+
+;     cld
+;     rep outsw
+
+;     pop esi
+;     leave
+;     ret

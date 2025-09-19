@@ -1,6 +1,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <assert.h>
+#include <stdio.h>
 
 
 #define ZEROPAD     1   //0填充

@@ -18,6 +18,8 @@
 #define READ_WRITE_LATCH 3
 #define PIT_CONTROL 0x40
 
+#define MS_PER_INTR (1000 / IRQ0_HZ)
+
 uint32_t ticks; //内核中断以来总ticks
 
 static void intr_timer_handler() {
@@ -31,6 +33,18 @@ static void intr_timer_handler() {
     else {
         cur_task->ticks --;
     }
+}
+
+static void ticks_to_sleep(uint32_t sleep_ticks) {
+    uint32_t start = ticks;
+    while (ticks - start < sleep_ticks) {
+        task_yield();
+    }
+}
+
+void mtime_sleep(uint32_t ms) {
+    uint32_t st = DIV_ROUND_UP(ms, MS_PER_INTR);
+    ticks_to_sleep(st);
 }
 
 static void frequency_set() {

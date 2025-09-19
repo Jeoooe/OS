@@ -34,6 +34,7 @@ $(BUILD)/kernel/switch.o \
 $(BUILD)/kernel/tss.o \
 $(BUILD)/kernel/syscall.o \
 $(BUILD)/kernel/stdlib.o \
+$(BUILD)/kernel/ide.o \
 
 
 LIB_TARGETS:= \
@@ -104,6 +105,7 @@ QEMU+= -boot c
 QEMU_DEBUG:= -s -S
 
 QEMU_DISK:= -drive file=$(BUILD)/master.img,if=ide,index=0,media=disk,format=raw 
+QEMU_DISK+= -drive file=./slave.img,if=ide,index=1,media=disk,format=raw
 
 qemu: $(BUILD)/master.img
 	$(QEMU) $(QEMU_DISK)
