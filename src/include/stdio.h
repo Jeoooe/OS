@@ -4,7 +4,7 @@
 #include <stdarg.h>
 
 enum fd_t {
-    stdin,
+    stdin = 0,
     stdout,
     stderr,
 };

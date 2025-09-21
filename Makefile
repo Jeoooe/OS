@@ -51,7 +51,12 @@ USERPROG_TARGETS:= \
 $(BUILD)/userprog/process.o \
 $(BUILD)/userprog/printf.o \
 
-ALL_TARGETS:= $(KERNEL_TARGETS) $(LIB_TARGETS) $(DEVICE_TARGETS) $(USERPROG_TARGETS)
+FS_TARTGETS:= \
+$(BUILD)/fs/fs.o
+
+ALL_TARGETS:= $(KERNEL_TARGETS) $(LIB_TARGETS)
+ALL_TARGETS+= $(DEVICE_TARGETS) $(USERPROG_TARGETS) 
+ALL_TARGETS+= $(FS_TARTGETS)
 
 
 
@@ -75,6 +80,9 @@ $(BUILD)/device/%.o: $(SRC_DIR)/device/%.c
 	gcc $(CFLAGS) $(CDEBUG) -Wall -c -o $@ $< 
 
 $(BUILD)/userprog/%.o: $(SRC_DIR)/userprog/%.c
+	gcc $(CFLAGS) $(CDEBUG) -Wall -c -o $@ $< 
+
+$(BUILD)/fs/%.o: $(SRC_DIR)/fs/%.c
 	gcc $(CFLAGS) $(CDEBUG) -Wall -c -o $@ $< 
 
 $(BUILD)/kernel.bin: $(ALL_TARGETS)
@@ -122,3 +130,4 @@ clear:
 	mkdir -p $(BUILD)/lib
 	mkdir -p $(BUILD)/device
 	mkdir -p $(BUILD)/userprog
+	mkdir -p $(BUILD)/fs

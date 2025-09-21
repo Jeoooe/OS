@@ -10,6 +10,8 @@
 #include <bitmap.h>
 #include <memory.h>
 
+#define MAX_FILES_OPEN_PER_PROC 8
+
 typedef int16_t pid_t;
 typedef void (*thread_func)(void*);
 
@@ -51,6 +53,7 @@ typedef struct task_block_t {
     uint8_t priority;
     uint8_t ticks;
     uint32_t elapsed_ticks;
+    int32_t fd_table[MAX_FILES_OPEN_PER_PROC];
     list_node_t node;
     uint32_t pd_addr;  //进程的页表地址
     vaddr_pool_t vaddr_pool;    //进程虚拟地址池

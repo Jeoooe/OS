@@ -300,7 +300,7 @@ void ide_init() {
     LOGK("IDE Init...");
     list_init(&partition_list);
     const uint8_t hd_cnt = *((uint8_t*)0x475);
-    const uint8_t channel_cnt = DIV_ROUND_UP(hd_cnt, 2);
+    channel_cnt = DIV_ROUND_UP(hd_cnt, 2);
 
     ide_channel_t* channel;
     uint8_t i = 0;

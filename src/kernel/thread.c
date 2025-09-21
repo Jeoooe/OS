@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <debug.h>
 #include <mutex.h>
+#include <stdio.h>
 
 #define MAX_THREAD_COUNT 64
 
@@ -131,6 +132,18 @@ void task_block_init(task_block_t* task, char* name, int priority) {
     task->ticks = priority;
     task->elapsed_ticks = 0;
     task->pd_addr = 0;
+    
+    //文件描述符数组
+    task->fd_table[stdin]  = 0;
+    task->fd_table[stdout] = 1;
+    task->fd_table[stderr] = 2;
+    uint8_t fd_index = 3;
+    while (fd_index < MAX_FILES_OPEN_PER_PROC) {
+        task->fd_table[fd_index] = -1;
+        fd_index++;
+    }
+
+    //799
     task->magic = MAGIC;
 }
 
