@@ -367,8 +367,26 @@ int32_t sys_open(const char* pathname, uint8_t flags) {
             (strrchr(pathname, '/') + 1), flags);
         dir_close(searched_record.parent_dir);
         break;
-    default:        //打开文件
+    default:        //打开文件 
+        fd = file_open(inode_no, flags);
         break;
     }
     return fd;
+}
+
+
+static uint32_t fd_local_to_global(uint32_t local_fd) {
+    task_block_t *cur = running_task();
+    int32_t global_fd = cur->fd_table[local_fd];
+    return (uint32_t)global_fd;
+}
+
+int32_t sys_close(int32_t fd) {
+    int32_t ret = -1;
+    if (fd > 2) {
+        uint32_t local_fd = fd_local_to_global(fd);
+        ret = file_close(&file_table[local_fd]);
+        running_task()->fd_table[fd] = -1;
+    }
+    return ret;
 }

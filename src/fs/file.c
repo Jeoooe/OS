@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <os.h>
 #include <string.h>
+#include <interrupt.h>
 
 extern partition_t* cur_part;   //from fs.c
 
@@ -162,4 +163,38 @@ rollback:
     }
     sys_free(io_buf);
     return -1;
+}
+
+
+
+int32_t file_open(uint32_t inode_no, uint8_t flag) {
+    int fd_idx = get_free_slot_in_global();
+    if (fd_idx == -1) {
+        return -1;
+    }
+    file_table[fd_idx].fd_inode = inode_open(cur_part, inode_no);
+    file_table[fd_idx].fd_pos = 0;
+    file_table[fd_idx].fd_flag = flag;
+
+    // bool *write_deny = &file_table[fd_idx].fd_inode->write_deny;
+
+    // if ((flag & O_WRONLY) || (flag & O_RDWR)) {
+    //     bool state = interrupt_disable();
+    //     if (!(*write_deny)) {
+    //         *write_deny = true;
+    //         set_interrupt_state(state);
+    //     }
+    //     else {
+    //         set_interrupt_state(state);
+    //         return -1;
+    //     }
+    // }
+    return pcb_fd_install(fd_idx);
+}
+
+int32_t file_close(file_t* file) {
+    if (file == NULL) return -1;
+    inode_close(file->fd_inode);
+    file->fd_inode = NULL;
+    return 0;
 }

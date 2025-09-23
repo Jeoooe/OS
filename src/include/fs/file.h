@@ -8,7 +8,7 @@
 
 typedef struct file_t {
     uint32_t fd_pos;    //文件操作的偏移地址
-    uint32_t fd_flag;
+    uint32_t fd_flag;   //对文件的操作 open_flags, 创建, 读写
     inode_t* fd_inode;
 } file_t;
 
@@ -40,5 +40,12 @@ void bitmap_sync(partition_t* part, uint32_t bit_index, enum bitmap_type btmp);
 
 /* 创建文件, 返回进程中文件描述符, 否则-1 */
 int32_t file_create(dir_t* parent_dir, char* filename, uint8_t flag);
+
+/* 打开文件,返回文件描述符 */
+int32_t file_open(uint32_t inode_no, uint8_t flag);
+
+/* 关闭文件 成功0, 失败-1*/
+int32_t file_close(file_t* file);
+
 
 #endif

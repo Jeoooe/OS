@@ -36,4 +36,7 @@ int32_t path_depth_cnt(char* pathname);
 /* 打开或创建文件, 返回文件描述符, 否则-1 */
 int32_t sys_open(const char* pathname, uint8_t flags);
 
+/* 关闭文件 成功0, 失败-1 */
+int32_t sys_close(int32_t fd);
+
 #endif
