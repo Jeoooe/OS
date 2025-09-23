@@ -73,7 +73,7 @@ void dir_close(dir_t* dir) {
     sys_free(dir);
 }
 
-void create_dir_entry(char* filename, uint32_t inode_no, file_types file_type, dir_entry_t* p_de) {
+void create_dir_entry(char* filename, uint32_t inode_no, uint32_t file_type, dir_entry_t* p_de) {
     const uint32_t namelen = strlen(filename);
     assert(namelen <= MAX_FILE_NAME_LEN);
 

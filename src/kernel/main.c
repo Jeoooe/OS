@@ -10,6 +10,7 @@
 #include <userprog.h>
 #include <syscall.h>
 #include <stdlib.h>
+#include <fs/fs.h>
 
 extern void interrupt_init();
 extern void timer_init();
@@ -36,10 +37,13 @@ void kernel_main() {
     syscall_init();
     ide_init();
 
+    
     keyboard_init();
     filesys_init();
-    
+
+    sys_open("/file1", O_CREAT);
     set_interrupt_state(true);
+    
 
     while (1)
         ;

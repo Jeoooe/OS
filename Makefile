@@ -52,7 +52,10 @@ $(BUILD)/userprog/process.o \
 $(BUILD)/userprog/printf.o \
 
 FS_TARTGETS:= \
-$(BUILD)/fs/fs.o
+$(BUILD)/fs/fs.o \
+$(BUILD)/fs/dir.o \
+$(BUILD)/fs/file.o \
+$(BUILD)/fs/inode.o 
 
 ALL_TARGETS:= $(KERNEL_TARGETS) $(LIB_TARGETS)
 ALL_TARGETS+= $(DEVICE_TARGETS) $(USERPROG_TARGETS) 
@@ -120,6 +123,14 @@ qemu: $(BUILD)/master.img
 
 qemug: $(BUILD)/master.img
 	$(QEMU) $(QEMU_DEBUG) $(QEMU_DISK) 
+
+.PHONY: slave
+slave: 
+	yes | bximage -q -func=create -hd=80 -imgmode="flat" -sectsize=512 slave.img
+	sfdisk slave.img < slave.sfdisk
+
+slave_clear:
+	rm slave.img
 
 .PHONY: clear
 clear: 

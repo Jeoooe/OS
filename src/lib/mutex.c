@@ -63,3 +63,33 @@ void lock_init(lock_t* lock) {
     lock->signal = 1;
     list_init(&lock->waiting_list);
 }
+
+
+//信号量初始化
+void sema_init(semaphore_t* psema, uint8_t value) {
+    psema->value = value;
+    list_init(&psema->waiters);
+}
+
+void sema_down(semaphore_t* psema) {
+    bool state = interrupt_disable();
+    while (psema->value == 0) { //已被持有
+        list_pushback(&psema->waiters, &running_task()->node);
+        task_block(TASK_BLOCKED);
+    }
+    psema->value--;
+    assert(psema->value == 0);
+    set_interrupt_state(state);
+}
+
+void sema_up(semaphore_t* psema) {
+    bool state = interrupt_disable();
+    assert(psema->value == 0);
+    if (!list_empty(&psema->waiters)) {
+        task_block_t* task = element_entry(task_block_t, node, list_pop(&psema->waiters));
+        task_unblock(task);
+    }
+    psema->value++;
+    assert(psema->value == 1);
+    set_interrupt_state(state);
+}

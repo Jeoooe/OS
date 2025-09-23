@@ -68,11 +68,21 @@ typedef struct boot_sector_t {
     uint16_t signature; //55,aa
 } _packed boot_sector_t;
 
+void intr_hd_handler(uint8_t vector) {
+    assert(vector == 0x2e || vector == 0x2f);
+    const uint8_t ch_no = vector - 0x2e;
+    ide_channel_t* ide = &channels[ch_no];
+
+    if (ide->expecting_intr) {
+        ide->expecting_intr = false;
+        sema_up(&ide->disk_done);
+        inb(reg_status(ide));
+    }
+}
+
 //等待中断
 static inline void wait_for_interrupt(ide_channel_t* ide) {
-    task_block_t *cur = running_task();
-    ide->holder = cur;
-    task_block(TASK_BLOCKED);
+    sema_down(&ide->disk_done);
 }
 
 //len个相邻字节交换位置后存入buf
@@ -110,17 +120,12 @@ static void cmd_out(ide_channel_t* ide, uint8_t cmd) {
     outb(reg_cmd(ide), cmd);
 }
 
-static void read_from_sector(disk_t* hd, void* buf, uint8_t sec_cnt) {
-    const uint32_t size_in_byte = ((sec_cnt == 0) ? 
-    256 * 512 : sec_cnt * 512);
-    BMB;
-    _insw(reg_data(hd->ide), buf, size_in_byte / 2);
+static void read_from_sector(disk_t* hd, void* buf) {
+    _insw(reg_data(hd->ide), buf, SECTOR_SIZE / 2);
 }
 
-static void write_to_sector(disk_t* hd, void* buf, uint8_t sec_cnt) {
-    const uint32_t size_in_byte = ((sec_cnt == 0) ? 
-    256 * 512 : sec_cnt * 512);
-    _outsw(reg_data(hd->ide), buf, size_in_byte / 2);
+static void write_to_sector(disk_t* hd, void* buf) {
+    _outsw(reg_data(hd->ide), buf, SECTOR_SIZE / 2);
 }
 
 static bool busy_wait(disk_t* hd) {
@@ -131,7 +136,7 @@ static bool busy_wait(disk_t* hd) {
         status = inb(reg_status(ide));
         if (!(status & BIT_ALT_STAT_BSY)) {
             //不是忙
-            return status & BIT_ALT_STAT_DRQ;
+            return (status & BIT_ALT_STAT_DRQ);
         }
         else {
             mtime_sleep(10);
@@ -158,17 +163,13 @@ void ide_read(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt) {
         }
         select_sector(hd, lba + secs_done, secs_op);
         cmd_out(hd->ide, CMD_READ_SECTOR);
-        //阻塞自己
-        wait_for_interrupt(hd->ide);
 
-        /*中断处理程序唤醒后执行*/
-        if (!busy_wait(hd)) {       //失败，不可读
-            char error[64];
-            sprintf(error, "%s, read sector %d fail\n", hd->name, lba);
-            panic(error);
+        for (size_t i = 0;i < secs_op;i++) {
+            hd->ide->expecting_intr = true;
+            sema_down(&hd->ide->disk_done);
+            busy_wait(hd);
+            read_from_sector(hd, (void*)((uint32_t)buf + i * 512));
         }
-        
-        read_from_sector(hd, (void*)((uint32_t)buf + secs_done * 512), secs_op);
         secs_done += secs_op;
     }
     lock_release(&hd->ide->lock);
@@ -199,10 +200,13 @@ void ide_write(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt) {
             panic(error);
         }
         
-        write_to_sector(hd, (void*)((uint32_t)buf + secs_done * 512), secs_op);
+        for (size_t i = 0;i < secs_op;i++) {
+            hd->ide->expecting_intr = true;
+            write_to_sector(hd, (void*)((uint32_t)buf + i * 512));
+            sema_down(&hd->ide->disk_done);
+            busy_wait(hd);
+        }
         
-        //阻塞自己
-        wait_for_interrupt(hd->ide);
         secs_done += secs_op;
     }
     lock_release(&hd->ide->lock);
@@ -213,14 +217,14 @@ static void identify_disk(disk_t* hd) {
     char id_info[512];
     select_disk(hd);
     cmd_out(hd->ide, CMD_IDENTIFY);
-    wait_for_interrupt(hd->ide);
+    sema_down(&hd->ide->disk_done);
 
     if (!busy_wait(hd)) {       //失败，不可读
         char error[64];
         sprintf(error, "%s identify fail\n", hd->name);
         panic(error);
     }
-    read_from_sector(hd, id_info, 1);
+    read_from_sector(hd, id_info);
     
     char buf[64];
     uint8_t sn_start = 10 * 2, sn_len = 20, md_start = 27 * 2, md_len = 40;
@@ -232,21 +236,6 @@ static void identify_disk(disk_t* hd) {
     uint32_t sectors = *(uint32_t*)&id_info[60 * 2];
     printk("Sectors: %d\n", sectors);
     printk("Capacity: %dMB\n", sectors * 512 / 1024 / 1024);
-}
-
-void intr_hd_handler(uint8_t vector) {
-    assert(vector == 0x2e || vector == 0x2f);
-    const uint8_t ch_no = vector - 0x2e;
-    ide_channel_t* ide = &channels[ch_no];
-
-    if (ide->expecting_intr) {
-        bool state = interrupt_disable();
-        ide->expecting_intr = false;
-        task_unblock(ide->holder);
-        ide->holder = NULL;
-        inb(reg_status(ide));
-        set_interrupt_state(state);
-    }
 }
 
 static void partition_scan(disk_t *hd, uint32_t ext_lba) {
@@ -271,7 +260,7 @@ static void partition_scan(disk_t *hd, uint32_t ext_lba) {
                 hd->parts[partition_no].sector_cnt = p->sec_cnt;
                 hd->parts[partition_no].disk = hd;
                 list_pushback(&partition_list, &hd->parts[partition_no].part_node);
-                sprintf(hd->parts[partition_no].name, "%s%d", hd->name, i + 1);
+                sprintf(hd->parts[partition_no].name, "%s%d", hd->name, partition_no + 1);
                 partition_no++;
             }
             else {
@@ -281,7 +270,7 @@ static void partition_scan(disk_t *hd, uint32_t ext_lba) {
                 list_pushback(&partition_list, &hd->logical_parts[logical_no].part_node);
                 sprintf(hd->logical_parts[logical_no].name, "%s%d", hd->name, logical_no + 5);
                 logical_no++;
-                if (logical_no > 8) {
+                if (logical_no >= 8) {
                     return;
                 }
             }
@@ -303,11 +292,11 @@ void ide_init() {
     channel_cnt = DIV_ROUND_UP(hd_cnt, 2);
 
     ide_channel_t* channel;
-    uint8_t i = 0;
-    for (;i < channel_cnt;i++) {
-        channel = &channels[i];
-        sprintf(channel->name, "ide%d", i);
-        switch (i) {
+    uint8_t channel_no = 0;
+    for (;channel_no < channel_cnt;channel_no++) {
+        channel = &channels[channel_no];
+        sprintf(channel->name, "ide%d", channel_no);
+        switch (channel_no) {
         case 0:
             channel->port_base = 0x1f0;
             channel->irq_no = 0x20 + 14;
@@ -319,15 +308,15 @@ void ide_init() {
         }
         channel->expecting_intr = false;
         lock_init(&channel->lock);
-        channel->holder = NULL;
+        sema_init(&channel->disk_done, 0);
         register_handler(channel->irq_no, intr_hd_handler);
-        for (int j = 0;j < 2;j++) {
-            disk_t *hd = &channel->disks[j];
+        for (int dev_no = 0;dev_no < 2;dev_no++) {
+            disk_t *hd = &channel->disks[dev_no];
             hd->ide = channel;
-            hd->dev_no = j;
-            sprintf(hd->name, "hd%c", 'a' + i * 2 + j);
+            hd->dev_no = dev_no;
+            sprintf(hd->name, "hd%c", 'a' + channel_no * 2 + dev_no);
             identify_disk(hd);
-            if (j != 0) {
+            if (dev_no != 0) {
                 partition_scan(hd, 0);
             }
             partition_no = 0, logical_no = 0;

@@ -5,6 +5,7 @@
 #include <list.h>
 #include <fs/inode.h>
 #include <fs/fs.h>
+#include <ide.h>
 
 #define MAX_FILE_NAME_LEN 16
 
@@ -18,7 +19,7 @@ typedef struct dir_t {
 typedef struct dir_entry_t {
     char filename[MAX_FILE_NAME_LEN];   //文件或者目录名字
     uint32_t i_no;                      //对应inode编号
-    file_types f_type;
+    uint32_t f_type;
 } dir_entry_t;
 
 //打开分区根目录
@@ -34,7 +35,7 @@ bool search_dir_entry(partition_t* part, dir_t* pdir, const char* name, dir_entr
 void dir_close(dir_t* dir);
 
 //创建目录项
-void create_dir_entry(char* filename, uint32_t inode_no, file_types file_type, dir_entry_t* p_de);
+void create_dir_entry(char* filename, uint32_t inode_no, uint32_t file_type, dir_entry_t* p_de);
 
 //p_de写入父目录,需提供足够的io_buf, 512字节
 bool sync_dir_entry(dir_t* parent_dir, dir_entry_t* p_de, void* io_buf);

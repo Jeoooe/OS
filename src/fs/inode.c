@@ -36,7 +36,7 @@ static void inode_locate(partition_t* part, uint32_t inode_no, inode_position_t*
 /* 将inode写入分区
  * io_buf是缓冲区,需要调用者申请好
  */
-void write_inode_to_part(partition_t* part, inode_t* inode, void* io_buf) {
+void inode_sync(partition_t* part, inode_t* inode, void* io_buf) {
     uint8_t inode_no = inode->i_no;
     inode_position_t inode_pos;
     inode_locate(part, inode_no, &inode_pos);
@@ -50,7 +50,7 @@ void write_inode_to_part(partition_t* part, inode_t* inode, void* io_buf) {
     pure_inode.inode_node.prev = pure_inode.inode_node.next = NULL;
     char *inode_buf = (char*)io_buf;
     //若跨区,需要拼接
-    const write_sec_cnt = inode_pos.two_sec ? 2 : 1;
+    const uint32_t write_sec_cnt = inode_pos.two_sec ? 2 : 1;
     ide_read(part->disk, inode_pos.sec_lba, inode_buf, write_sec_cnt);
     memcpy((inode_buf + inode_pos.off_size), &pure_inode, sizeof(inode_t));
     ide_write(part->disk, inode_pos.sec_lba, inode_buf, write_sec_cnt);
@@ -69,7 +69,7 @@ inode_t* inode_open(partition_t* part, uint32_t inode_no) {
     }
 
     //没有打开过
-    inode_position_t* inode_pos;
+    inode_position_t inode_pos;
     inode_locate(part, inode_no, &inode_pos);
 
     //需要把inode置于内核空间
@@ -80,10 +80,10 @@ inode_t* inode_open(partition_t* part, uint32_t inode_no) {
     task->pd_addr = cur_pagedir;
 
     char *inode_buf;
-    const buf_secs = inode_pos->two_sec ? 2 : 1;
+    const uint32_t buf_secs = inode_pos.two_sec ? 2 : 1;
     inode_buf = (char*)sys_malloc(512 * buf_secs);
-    ide_read(part->disk, inode_pos->sec_lba, inode_buf, buf_secs);
-    memcpy(inode_found, inode_buf + inode_pos->off_size, sizeof(inode_t));
+    ide_read(part->disk, inode_pos.sec_lba, inode_buf, buf_secs);
+    memcpy(inode_found, inode_buf + inode_pos.off_size, sizeof(inode_t));
     list_push(&part->open_inodes, &inode_found->inode_node);
     inode_found->i_open_cnts = 1;
     sys_free(inode_buf);
@@ -98,7 +98,7 @@ void inode_close(inode_t* inode) {
         list_remove(&inode->inode_node);
         task_block_t* task = running_task();
         uint32_t cur_pagedir = task->pd_addr;
-        task->pd_addr = NULL;
+        task->pd_addr = 0;
         sys_free(inode);
         task->pd_addr = cur_pagedir;
     }

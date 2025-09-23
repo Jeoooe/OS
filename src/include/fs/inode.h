@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <list.h>
+#include <ide.h>
 
 typedef struct inode_t {
     uint32_t i_no;  //inode编号
@@ -21,12 +22,16 @@ typedef struct inode_t {
 /* 将inode写入分区
  * io_buf是缓冲区,需要调用者申请好
  */
-void write_inode_to_part(partition_t* part, inode_t* inode, void* io_buf);
+void inode_sync(partition_t* part, inode_t* inode, void* io_buf);
 
 //打开一个inode
 inode_t* inode_open(partition_t* part, uint32_t inode_no);
 
 //关闭inode
 void inode_close(inode_t* inode);
+
+//初始化新的inode
+void inode_init(uint32_t inode_no, inode_t* new_inode);
+
 
 #endif

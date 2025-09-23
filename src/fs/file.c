@@ -2,6 +2,12 @@
 #include <thread.h>
 #include <ide.h>
 #include <fs/fs.h>
+#include <debug.h>
+#include <assert.h>
+#include <os.h>
+#include <string.h>
+
+extern partition_t* cur_part;   //from fs.c
 
 file_t file_table[MAX_FILE_OPEN];
 
@@ -38,7 +44,6 @@ int32_t pcb_fd_install(int32_t global_fd_index) {
     return local_fd_idx;
 }
 
-//分配一个inode
 int32_t inode_bitmap_alloc(partition_t* part) {
     int32_t bit_index = bitmap_scan(&part->inode_bitmap, 1);
     if (bit_index == -1) {
@@ -74,4 +79,87 @@ void bitmap_sync(partition_t* part, uint32_t bit_index, enum bitmap_type btmp) {
         break;
     }
     ide_write(part->disk, sec_lba, bitmap_off, 1);
+}
+
+int32_t file_create(dir_t* parent_dir, char* filename, uint8_t flag) {
+    void *io_buf = sys_malloc(1024);    //2扇区
+    if (io_buf == NULL) {
+        LOGK("Malloc fail [file_create]\n");
+        return -1;
+    }
+
+    uint8_t rollback_step = 0;  //操作失败时回滚
+
+    //inode分配
+    int32_t inode_no = inode_bitmap_alloc(cur_part);
+    if (inode_no == -1) {
+        LOGK("Allocate inode fail [file_create]");
+        return -1;
+    }
+
+    inode_t *new_file_inode = (inode_t*)sys_malloc(sizeof(inode_t));
+    if (new_file_inode == NULL) {
+        LOGK("Malloc for inode fail [file_create]\n");
+        rollback_step = 1;
+        goto rollback;
+    }
+    inode_init(inode_no, new_file_inode);
+
+    int fd_index = get_free_slot_in_global();
+    if (fd_index == -1) {
+        LOGK("Exceed max open files\n");
+        rollback_step = 2;
+        goto rollback;
+    }
+    file_table[fd_index].fd_inode = new_file_inode;
+    file_table[fd_index].fd_pos = 0;
+    file_table[fd_index].fd_flag = flag;
+    file_table[fd_index].fd_inode->write_deny = false;
+
+    dir_entry_t new_dir_entry;
+    memset(&new_dir_entry, 0, sizeof(dir_entry_t));
+
+    create_dir_entry(filename, inode_no, FT_REGULAR, &new_dir_entry);
+
+    /* 同步数据到硬盘 */
+    //先安装目录项到父目录
+    if (!sync_dir_entry(parent_dir, &new_dir_entry, io_buf)) {
+        LOGK("Sync dir_entry fail");
+        rollback_step = 3;
+        goto rollback;
+    }
+    memset(io_buf, 0, 1024);
+
+    //父目录inode内容同步
+    inode_sync(cur_part, parent_dir->inode, io_buf);
+    memset(io_buf, 0, 1024);
+
+    //新建inode同步
+    inode_sync(cur_part, new_file_inode, io_buf);
+    
+    //inode_bitmap同步
+    bitmap_sync(cur_part, inode_no, INODE_BITMAP);
+
+    //新建inode添加到open_inodes
+    list_push(&cur_part->open_inodes, &new_file_inode->inode_node);
+    new_file_inode->i_open_cnts = 1;
+    
+    sys_free(io_buf);
+    return pcb_fd_install(fd_index);
+
+    
+rollback:
+    /* 创建失败回滚 */
+    switch (rollback_step)
+    {
+    case 3:
+        memset(&file_table[fd_index], 0, sizeof(file_t));
+    case 2:
+        sys_free(new_file_inode);
+    case 1:
+        bitmap_set(&cur_part->inode_bitmap, inode_no, 0);
+        break;
+    }
+    sys_free(io_buf);
+    return -1;
 }
