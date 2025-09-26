@@ -75,11 +75,7 @@ ide.o: ide.c ../include/ide.h ../include/stdint.h ../include/mutex.h \
 interrupt.o: interrupt.c ../include/os.h ../include/interrupt.h \
  ../include/stdint.h ../include/debug.h ../include/io.h \
  ../include/global.h ../include/assert.h
-main.o: main.c ../include/os.h ../include/stdint.h ../include/stdio.h \
- ../include/stdarg.h ../include/debug.h ../include/console.h \
- ../include/assert.h ../include/interrupt.h ../include/memory.h \
- ../include/bitmap.h ../include/list.h ../include/thread.h \
- ../include/userprog.h ../include/syscall.h ../include/stdlib.h
+main.o: main.c ../include/os.h ../include/interrupt.h ../include/stdint.h
 memory.o: memory.c ../include/memory.h ../include/stdint.h \
  ../include/bitmap.h ../include/list.h ../include/string.h \
  ../include/debug.h ../include/os.h ../include/assert.h \

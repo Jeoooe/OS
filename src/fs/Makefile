@@ -17,8 +17,7 @@ LD_FLAGS:= -m elf_i386
 
 
 OBJS:=\
-$(BUILD)/fs/fs.o \
-$(BUILD)/fs/super_block.o
+$(BUILD)/fs/fs.o 
 
 $(BUILD)/fs/%.o: %.c
 	$(CC) $(CFLAGS) $(CDEBUG) -c -o $@ $<
@@ -40,8 +39,7 @@ dep:
 	cp tmp_make Makefile
 
 ### Dependencies
-fs.o: fs.c
-super_block.o: super_block.c ../include/fs/fs.h ../include/ide.h \
- ../include/stdint.h ../include/mutex.h ../include/thread.h \
- ../include/list.h ../include/bitmap.h ../include/memory.h \
- ../include/debug.h ../include/assert.h ../include/os.h
+fs.o: fs.c ../include/fs/fs.h ../include/ide.h ../include/stdint.h \
+ ../include/mutex.h ../include/thread.h ../include/list.h \
+ ../include/bitmap.h ../include/memory.h ../include/debug.h \
+ ../include/assert.h ../include/os.h ../include/string.h

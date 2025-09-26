@@ -56,6 +56,14 @@ $(BUILD)/master.img: $(BUILD)/boot/mbr.bin $(BUILD)/boot/loader.bin \
 	dd if=$(BUILD)/boot/loader.bin of=$@ bs=512 count=2 seek=2 conv=notrunc
 	dd if=$(SYSTEM) of=$@ bs=512 count=200 seek=10 conv=notrunc
 
+.PHONY: update
+update:
+	(cd src/kernel; make)
+	(cd src/lib; make)
+	(cd src/device; make)
+	(cd src/userprog; make)
+	(cd src/fs; make)
+
 
 #虚拟机启动设置
 .PHONY: bochs qemu qemug
