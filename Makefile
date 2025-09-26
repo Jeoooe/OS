@@ -12,81 +12,32 @@ CFLAGS+= -I$(SRC_DIR)/include
 CDEBUG:= -g
 
 
-
 SYSTEM:=$(BUILD)/system.bin
 
-KERNEL_TARGETS:= \
-$(BUILD)/kernel/start.o \
-$(BUILD)/kernel/main.o \
-$(BUILD)/kernel/io.o \
-$(BUILD)/kernel/console.o \
-$(BUILD)/kernel/printk.o \
-$(BUILD)/kernel/assert.o \
-$(BUILD)/kernel/debug.o \
-$(BUILD)/kernel/interrupt.o \
-$(BUILD)/kernel/interrupt_handler.o \
-$(BUILD)/kernel/interrupt_state.o \
-$(BUILD)/kernel/timer.o \
-$(BUILD)/kernel/memory.o \
-$(BUILD)/kernel/bitmap.o \
-$(BUILD)/kernel/thread.o \
-$(BUILD)/kernel/switch.o \
-$(BUILD)/kernel/tss.o \
-$(BUILD)/kernel/syscall.o \
-$(BUILD)/kernel/stdlib.o \
-$(BUILD)/kernel/ide.o \
+ALL_TARGETS:= $(BUILD)/kernel/kernel.o $(BUILD)/lib/lib.o
+ALL_TARGETS+= $(BUILD)/device/device.o $(BUILD)/userprog/userprog.o
+ALL_TARGETS+= $(BUILD)/fs/filesys.o
 
 
-LIB_TARGETS:= \
-$(BUILD)/lib/string.o \
-$(BUILD)/lib/vsprintf.o \
-$(BUILD)/lib/list.o \
-$(BUILD)/lib/mutex.o \
-
-DEVICE_TARGETS:= \
-$(BUILD)/device/keyboard.o \
-$(BUILD)/device/ring.o \
-
-USERPROG_TARGETS:= \
-$(BUILD)/userprog/process.o \
-$(BUILD)/userprog/printf.o \
-
-FS_TARTGETS:= \
-$(BUILD)/fs/fs.o \
-$(BUILD)/fs/dir.o \
-$(BUILD)/fs/file.o \
-$(BUILD)/fs/inode.o 
-
-ALL_TARGETS:= $(KERNEL_TARGETS) $(LIB_TARGETS)
-ALL_TARGETS+= $(DEVICE_TARGETS) $(USERPROG_TARGETS) 
-ALL_TARGETS+= $(FS_TARTGETS)
-
-
-
-.PHONY: default
-default: $(BUILD)/master.img
+all: $(BUILD)/master.img
 
 $(BUILD)/boot/%.bin: $(SRC_DIR)/boot/%.asm
 	nasm -f bin -o $@ $<
 
-$(BUILD)/kernel/%.o: $(SRC_DIR)/kernel/%.asm
-	nasm -f elf32 -gdwarf -o $@ $<
+$(BUILD)/fs/filesys.o:
+	(cd src/fs; make)
 
+$(BUILD)/kernel/kernel.o:
+	(cd src/kernel; make)
 
-$(BUILD)/kernel/%.o: $(SRC_DIR)/kernel/%.c
-	gcc $(CFLAGS) $(CDEBUG) -Wall -c -o $@ $< 
+$(BUILD)/lib/lib.o:
+	(cd src/lib; make)
 
-$(BUILD)/lib/%.o: $(SRC_DIR)/lib/%.c
-	gcc $(CFLAGS) $(CDEBUG) -Wall -c -o $@ $< 
+$(BUILD)/device/device.o:
+	(cd src/device; make)
 
-$(BUILD)/device/%.o: $(SRC_DIR)/device/%.c
-	gcc $(CFLAGS) $(CDEBUG) -Wall -c -o $@ $< 
-
-$(BUILD)/userprog/%.o: $(SRC_DIR)/userprog/%.c
-	gcc $(CFLAGS) $(CDEBUG) -Wall -c -o $@ $< 
-
-$(BUILD)/fs/%.o: $(SRC_DIR)/fs/%.c
-	gcc $(CFLAGS) $(CDEBUG) -Wall -c -o $@ $< 
+$(BUILD)/userprog/userprog.o:
+	(cd src/userprog; make)
 
 $(BUILD)/kernel.bin: $(ALL_TARGETS)
 	ld $(LD_FLAGS) -o $@ $^
@@ -142,3 +93,11 @@ clear:
 	mkdir -p $(BUILD)/device
 	mkdir -p $(BUILD)/userprog
 	mkdir -p $(BUILD)/fs
+
+
+dep:
+	(cd src/kernel; make dep)
+	(cd src/userprog; make dep)
+	(cd src/fs; make dep)
+	(cd src/lib; make dep)
+	(cd src/device; make dep)

@@ -1,6 +1,7 @@
 \.vscode
 build
 log
+tmp_*
 
 bx_enh_dbg.ini
 *.img
