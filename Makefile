@@ -16,10 +16,18 @@ SYSTEM:=$(BUILD)/system.bin
 
 ALL_TARGETS:= $(BUILD)/kernel/kernel.o $(BUILD)/lib/lib.o
 ALL_TARGETS+= $(BUILD)/device/device.o $(BUILD)/userprog/userprog.o
-ALL_TARGETS+= $(BUILD)/fs/filesys.o
+# ALL_TARGETS+= $(BUILD)/fs/filesys.o
 
 
 all: $(BUILD)/master.img
+
+.PHONY: update
+update: 
+	(cd src/kernel; make)
+	(cd src/userprog; make)
+# 	(cd src/fs; make)
+	(cd src/lib; make)
+	(cd src/device; make)
 
 $(BUILD)/boot/%.bin: $(SRC_DIR)/boot/%.asm
 	nasm -f bin -o $@ $<

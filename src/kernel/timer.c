@@ -25,9 +25,10 @@ uint32_t ticks; //内核中断以来总ticks
 static void intr_timer_handler() {
     task_block_t* cur_task = running_task();
     assert(cur_task->magic == MAGIC);
-    cur_task->elapsed_ticks ++;
     ticks++;
+    cur_task->jiffies = ticks;
     if (cur_task->ticks == 0) {
+        cur_task->jiffies = ticks;
         schedule();
     }   
     else {

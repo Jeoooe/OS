@@ -12,7 +12,6 @@
 
 task_block_t* main_thread;  //主线程
 task_block_t* idle_thread;  //空闲线程
-list_t ready_task_list;
 
 task_block_t* all_threads[MAX_THREAD_COUNT];
 
@@ -41,12 +40,12 @@ task_block_t* running_task() {
 }
 
 //创建线程或进程后第一次调度会进入此函数 
-static void kernel_thread(thread_func function, void* func_arg) {
-    set_interrupt_state(true);  //开中断
-    function(func_arg);
-}
+// static void kernel_thread(thread_func function, void* func_arg) {
+//     set_interrupt_state(true);  //开中断
+//     function(func_arg);
+// }
 
-static void idle(void* arg) {
+static void idle() {
     while(1) {
         asm volatile("sti\nhlt");
         task_block(TASK_BLOCKED);
@@ -58,9 +57,23 @@ extern void process_activate(task_block_t *task);
 void schedule() {
     assert(!get_interrupt_state()); //处于关中断状态
     task_block_t *cur = running_task();
+    task_block_t *next;
+    for (size_t i = 0;i < MAX_THREAD_COUNT;i++) {
+        if (all_threads[i] == NULL) continue;
+        if (all_threads[i] == cur) continue;
+        if (all_threads[i]->status != TASK_READY) continue;
+
+        if (next == NULL) {
+            next = all_threads[i];
+            continue;
+        }
+        //比较时间片
+        if (all_threads[i]->jiffies < next->jiffies || all_threads[i]->ticks > next->ticks) {
+            next = all_threads[i];
+        }
+    }
     if (cur->status == TASK_RUNNING) {
         //时间片到期
-        list_pushback(&ready_task_list, &cur->node);
         cur->ticks = cur->priority;
         cur->status = TASK_READY;
     }
@@ -68,15 +81,15 @@ void schedule() {
         /* 其他事件发生 , 不加入READY队列 */ 
     }
     // assert(!list_empty(&ready_task_list));
-    if (list_empty(&ready_task_list)) {
+    if (!next) {
         task_unblock(idle_thread);
     }
-    list_node_t *next_node = list_pop(&ready_task_list);
-    task_block_t *next = element_entry(task_block_t, node, next_node);
+
+
     next->status = TASK_RUNNING;
 
     //激活任务的页目录并更新tss
-    process_activate(next);
+    // process_activate(next);
 
     switch_to(cur, next);
 }
@@ -84,7 +97,6 @@ void schedule() {
 void task_yield() {
     task_block_t* task = running_task();
     bool state = interrupt_disable();
-    list_pushback(&ready_task_list, &task->node);
     task->status = TASK_READY;
     schedule();
     set_interrupt_state(state);   
@@ -113,11 +125,8 @@ void task_unblock(task_block_t* task) {
     bool intr_state = interrupt_disable();
     assert(task->status == TASK_BLOCKED ||
         task->status == TASK_WAITING || task->status == TASK_HANGING);
-    assert(!list_search(&ready_task_list, &task->node));
 
     task->status = TASK_READY;
-
-    list_push(&ready_task_list, &task->node);
 
     set_interrupt_state(intr_state);
 }
@@ -127,73 +136,61 @@ void task_block_init(task_block_t* task, char* name, int priority) {
     /* PCB信息 */
     //清空PCB一页
     strcpy(task->name, name);
+    task->uid = UID_KERNEL;
     task->status = TASK_READY;
     task->priority = priority;
     task->ticks = priority;
-    task->elapsed_ticks = 0;
+    task->jiffies = 0;
     task->pd_addr = 0;
-    
-    //文件描述符数组
-    task->fd_table[stdin]  = 0;
-    task->fd_table[stdout] = 1;
-    task->fd_table[stderr] = 2;
-    uint8_t fd_index = 3;
-    while (fd_index < MAX_FILES_OPEN_PER_PROC) {
-        task->fd_table[fd_index] = -1;
-        fd_index++;
-    }
 
     //799
     task->magic = MAGIC;
 }
 
-void task_stack_init(task_block_t* task, thread_func function, void* func_arg) {
+void task_stack_init(task_block_t* task, thread_func function) {
     task->self_kstack = (uint32_t*)((uint32_t)task + PAGE_SIZE);
     task->self_kstack -= sizeof(interrupt_stack_t);
     task->self_kstack -= sizeof(task_stack_t);
     task_stack_t* kstack = (task_stack_t*)task->self_kstack;
-    kstack->eip = kernel_thread;
-    kstack->function = function;
-    kstack->func_arg = func_arg;
+    kstack->eip = function;
     kstack->ebp = kstack->ebx = kstack->edi = kstack->esi = 0;
 }
 
 //创建一个线程
 task_block_t* task_create(char* name,
-    int priority, thread_func function, void* func_arg
+    int priority, thread_func function
 ) {
     task_block_t *task = get_free_task();
     assert(task != NULL);
     task_block_init(task, name, priority);
 
     //预留栈空间
-    task_stack_init(task, function, func_arg);
-
-    /* 加入队列 */
-    assert(!list_search(&ready_task_list, &task->node));
-    list_pushback(&ready_task_list, &task->node);
+    task_stack_init(task, function);
     return task;
 }
 
 static void task_setup() {
-    /* 空闲进程 */
-    idle_thread = get_kpages(1);
-    memset(idle_thread, 0, sizeof(task_block_t));
-    idle_thread->pid = 0;
-    task_block_init(idle_thread, "idle", 10);
-    task_stack_init(idle_thread, idle, NULL);
-    idle_thread->status = TASK_BLOCKED;
-    all_threads[0] = idle_thread;
-    /* 将主线程加入 */
-    main_thread = running_task();
-    task_block_init(main_thread, "main", 31);
-    main_thread->status = TASK_RUNNING;
-    main_thread->self_kstack = (uint32_t*)((uint32_t)main_thread + PAGE_SIZE);
-    all_threads[1] = main_thread;   //设置第1个任务
+    task_block_t* task = running_task();
+    task->magic = MAGIC;
+    task->ticks = 61;
+    memset(all_threads, 0, sizeof(all_threads));
+}
+
+void task_a() {
+    set_interrupt_state(true);
+    printk("in task_a");
+    while (1) ;
+}
+void task_b() {
+    set_interrupt_state(true);
+    printk("in task_b");
+    while (1) ;
 }
 
 void task_init() {
-    list_init(&ready_task_list);
-    lock_init(&pid_lock);
+    lock_init(&pid_lock);    
     task_setup();    
+
+    // task_create("task_a", 31, task_a);
+    // task_create("task_a", 31, task_b);
 }

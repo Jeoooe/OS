@@ -10,7 +10,6 @@
 #include <userprog.h>
 #include <syscall.h>
 #include <stdlib.h>
-#include <fs/fs.h>
 
 extern void interrupt_init();
 extern void timer_init();
@@ -27,24 +26,39 @@ void kernel_main() {
     LOGK("Kernel Init...", MAGIC);
     interrupt_init();
 
+    timer_init();
+    task_init();
+    syscall_init();
+
+    
+    
+
     interrupt_mask(INTERRUPT_TIMER, true);
     interrupt_mask(INTERRUPT_SLAVE, true);
     interrupt_mask(INTERRUPT_HARDDISK_MASTER, true);
     interrupt_mask(INTERRUPT_HARDDISK_SLAVE, true);
 
-    timer_init();
-    task_init();
-    syscall_init();
-    ide_init();
-
-    
-    keyboard_init();
-    filesys_init();
-
-    sys_open("/file1", O_CREAT);
     set_interrupt_state(true);
+    //进入用户模式
+    asm(
+        "movl %%esp, %%eax\n"
+        "pushl $0x2b\n"
+        "pushl %%eax\n"
+        "pushfl\n"
+        "pushl $0x23\n"
+        "pushl $1f\n"
+        "iret\n"
+        "1:\t movl $0x2b, %%eax\n"
+        "movl %%eax, %%ds\n"
+        "movl %%eax, %%es\n"
+        "movl %%eax, %%fs\n"
+        :::"ax"  
+    );
+    //从这里开始是用户态
     
-
+    BMB;
     while (1)
         ;
+    ide_init();
+    keyboard_init();
 }

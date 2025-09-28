@@ -55,6 +55,7 @@ static void make_gdt_desc(gdt_desc_t* desc, uint32_t desc_addr, uint32_t limit, 
     desc->limit_high_attr_high = ((limit >> 16) & 0xf) | ((uint8_t)attr_high);
 }
 
+//设置tss段, 用户代码段和数据段
 void tss_init() {
     LOGK("TSS Init...");
     

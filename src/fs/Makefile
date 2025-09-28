@@ -40,8 +40,25 @@ dep:
 	cp tmp_make Makefile
 
 ### Dependencies
-fs.o: fs.c
-super_block.o: super_block.c ../include/fs/fs.h ../include/ide.h \
- ../include/stdint.h ../include/mutex.h ../include/thread.h \
- ../include/list.h ../include/bitmap.h ../include/memory.h \
- ../include/debug.h ../include/assert.h ../include/os.h
+dir.o: dir.c ../include/fs/fs.h ../include/stdint.h ../include/fs/dir.h \
+ ../include/list.h ../include/fs/inode.h ../include/ide.h \
+ ../include/mutex.h ../include/thread.h ../include/bitmap.h \
+ ../include/memory.h ../include/fs/super_block.h ../include/fs/file.h \
+ ../include/debug.h ../include/string.h ../include/assert.h
+file.o: file.c ../include/fs/file.h ../include/stdint.h \
+ ../include/fs/inode.h ../include/list.h ../include/ide.h \
+ ../include/mutex.h ../include/thread.h ../include/bitmap.h \
+ ../include/memory.h ../include/fs/super_block.h ../include/fs/dir.h \
+ ../include/fs/fs.h ../include/debug.h ../include/assert.h \
+ ../include/os.h ../include/string.h ../include/interrupt.h
+fs.o: fs.c ../include/fs/fs.h ../include/stdint.h ../include/fs/dir.h \
+ ../include/list.h ../include/fs/inode.h ../include/ide.h \
+ ../include/mutex.h ../include/thread.h ../include/bitmap.h \
+ ../include/memory.h ../include/fs/super_block.h ../include/fs/file.h \
+ ../include/os.h ../include/debug.h ../include/string.h \
+ ../include/assert.h
+inode.o: inode.c ../include/fs/inode.h ../include/stdint.h \
+ ../include/list.h ../include/ide.h ../include/mutex.h \
+ ../include/thread.h ../include/bitmap.h ../include/memory.h \
+ ../include/fs/super_block.h ../include/fs/fs.h ../include/fs/dir.h \
+ ../include/assert.h ../include/string.h ../include/interrupt.h

@@ -68,7 +68,7 @@ debug.o: debug.c ../include/debug.h ../include/os.h ../include/stdarg.h \
  ../include/stdio.h
 ide.o: ide.c ../include/ide.h ../include/stdint.h ../include/mutex.h \
  ../include/thread.h ../include/list.h ../include/bitmap.h \
- ../include/memory.h ../include/fs/fs.h ../include/debug.h \
+ ../include/memory.h ../include/fs/super_block.h ../include/debug.h \
  ../include/stdio.h ../include/stdarg.h ../include/io.h \
  ../include/assert.h ../include/timer.h ../include/interrupt.h \
  ../include/os.h ../include/string.h

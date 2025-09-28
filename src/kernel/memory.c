@@ -244,40 +244,6 @@ uint32_t addr_v2p(uint32_t vaddr) {
 
 /* 初始化相关 */
 
-// static void page_init() {
-//     const uint32_t attr = 0b111;
-//     uint32_t *pde = (uint32_t *)PDIR_BASE;
-//     uint32_t* pte;
-//     int i, addr;
-//     //清空页目录的内存
-//     memset(pde, 0, PAGE_SIZE);
-//     //设定首个页表和最后一个页表
-//     pde[0] = (PDIR_BASE + PAGE_SIZE) | attr;
-//     pde[INDEX_SIZE - 1] = PDIR_BASE | attr;
-
-//     //创建第一个页表
-//     pte = (uint32_t*)(PDIR_BASE + PAGE_SIZE);
-//     for (i = 0; i < PDIR_BASE / PAGE_SIZE;i++) {
-//         pte[i] = INDEX_TO_ADDR(i) | attr;
-//     }
-
-//     //映射内核内存空间
-//     //高1GB
-//     addr = (PDIR_BASE + PAGE_SIZE) | attr;
-//     for (i = 0;i < 255;i++) {
-//         pde[i + 768] = addr;
-//         addr += 0x1000;
-//     }
-
-//     //赋值cr3
-//     set_cr3((uint32_t)pde);
-//     //设置cr0
-//     asm volatile(
-//         "movl %cr0, %eax\n"
-//         "orl $0x80000000, %eax\n"
-//         "movl %eax, %cr0"
-//     );
-// }
 
 static void memory_pool_init(uint32_t ards_addr) {
     LOGK("POOL Init...");
