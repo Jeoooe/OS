@@ -18,8 +18,8 @@ LD_FLAGS:= -m elf_i386
 
 
 OBJS:=\
-$(BUILD)/process.o \
 $(BUILD)/printf.o \
+# $(BUILD)/process.o \
 
 $(BUILD)/%.o: %.c
 	$(CC) $(CFLAGS) $(CDEBUG) -c -o $@ $<

@@ -29,15 +29,15 @@ static void mount_partition(partition_t* part) {
     cur_part = part;
     disk_t* hd = cur_part->disk;
 
-    super_block_t *sp_buf = (super_block_t*)sys_malloc(SECTOR_SIZE);
-    cur_part->super_block = (super_block_t*)sys_malloc(sizeof(super_block_t));
+    super_block_t *sp_buf = (super_block_t*)kmalloc(SECTOR_SIZE);
+    cur_part->super_block = (super_block_t*)kmalloc(sizeof(super_block_t));
     assert(cur_part->super_block != NULL);
     memset(sp_buf, 0, SECTOR_SIZE);
     ide_read(hd, cur_part->start_lba + 1, sp_buf, 1);
 
     memcpy(cur_part->super_block, sp_buf, sizeof(super_block_t));
     bitmap_init(&cur_part->block_bitmap, 
-        (uint8_t*)sys_malloc(sp_buf->block_bitmap_sects * SECTOR_SIZE),
+        (uint8_t*)kmalloc(sp_buf->block_bitmap_sects * SECTOR_SIZE),
         sp_buf->block_bitmap_sects * SECTOR_SIZE, 0
     );
 
@@ -48,7 +48,7 @@ static void mount_partition(partition_t* part) {
     
     //inode位图
     bitmap_init(&cur_part->inode_bitmap,
-        (uint8_t*)sys_malloc(sp_buf->inode_bitmap_sects * SECTOR_SIZE),
+        (uint8_t*)kmalloc(sp_buf->inode_bitmap_sects * SECTOR_SIZE),
         sp_buf->inode_bitmap_sects * SECTOR_SIZE, 0
     );
     assert(cur_part->inode_bitmap.bits != NULL);
@@ -110,7 +110,7 @@ static void partition_format(partition_t* part) {
     /* 块位图 */
     uint32_t buf_size = MAX(sp.block_bitmap_sects, sp.inode_bitmap_sects);
     buf_size = MAX(buf_size, sp.inode_table_sects) * SECTOR_SIZE;
-    uint8_t *buf = (uint8_t *)sys_malloc(buf_size);
+    uint8_t *buf = (uint8_t *)kmalloc(buf_size);
     memset(buf, 0, buf_size);
 
     buf[0] |= 0b1;      //根目录
@@ -159,13 +159,13 @@ static void partition_format(partition_t* part) {
 
     printk("Root Directory LBA: %d\n", sp.data_start_lba);
     LOGK("%s Format Done", part->name);
-    sys_free(buf);
+    kfree(buf);
 }
 
 //搜索文件系统,或者创建文件系统
 void filesys_init() {
     uint8_t channel_no = 0, dev_no, part_index = 0;
-    super_block_t* sp_buf = (super_block_t*)sys_malloc(SECTOR_SIZE);
+    super_block_t* sp_buf = (super_block_t*)kmalloc(SECTOR_SIZE);
 
     assert(sp_buf != NULL);
     printk("Searching filesystem...\n");
@@ -203,7 +203,7 @@ void filesys_init() {
         }
         channel_no++;   //下一个通道
     }
-    sys_free(sp_buf);
+    kfree(sp_buf);
 
     //挂载分区
     char default_part[8] = "hdb1";

@@ -15,7 +15,7 @@ void open_root_dir(partition_t* part) {
 }
 
 dir_t* dir_open(partition_t* part, uint32_t inode_no) {
-    dir_t* pdir = (dir_t*)sys_malloc(sizeof(dir_t));
+    dir_t* pdir = (dir_t*)kmalloc(sizeof(dir_t));
     pdir->inode = inode_open(part, inode_no);
     pdir->dir_pos = 0;
     return pdir;
@@ -23,7 +23,7 @@ dir_t* dir_open(partition_t* part, uint32_t inode_no) {
 
 bool search_dir_entry(partition_t* part, dir_t* pdir, const char* name, dir_entry_t* dir_e) {
     const uint32_t block_cnt = 140;   //12 + 128
-    uint32_t *all_blocks = (uint32_t*)sys_malloc(140 * 4);
+    uint32_t *all_blocks = (uint32_t*)kmalloc(140 * 4);
     if (all_blocks == NULL) {
         LOGK("Search_dir_entry: malloc fail");
         return false;
@@ -38,7 +38,7 @@ bool search_dir_entry(partition_t* part, dir_t* pdir, const char* name, dir_entr
         ide_read(part->disk, pdir->inode->i_sectors[12], all_blocks + 12, 1);
     }
     /*  allblocks存储该文件所有扇区地址 */
-    uint8_t *buf = (uint8_t*)sys_malloc(SECTOR_SIZE);
+    uint8_t *buf = (uint8_t*)kmalloc(SECTOR_SIZE);
     dir_entry_t* p_entry = (dir_entry_t*)buf;
     const uint32_t dir_entry_size = part->super_block->dir_entry_size;
     const uint32_t dir_entry_cnt = SECTOR_SIZE / dir_entry_size;
@@ -51,8 +51,8 @@ bool search_dir_entry(partition_t* part, dir_t* pdir, const char* name, dir_entr
         while (dir_entry_index < dir_entry_cnt) {
             if (!strcmp(p_entry->filename, name)) {
                 memcpy(dir_e, p_entry, dir_entry_size);
-                sys_free(buf);
-                sys_free(all_blocks);
+                kfree(buf);
+                kfree(all_blocks);
                 return true;
             }
             dir_entry_index++;
@@ -61,8 +61,8 @@ bool search_dir_entry(partition_t* part, dir_t* pdir, const char* name, dir_entr
         p_entry = (dir_entry_t*)buf;
         memset(buf, 0, SECTOR_SIZE);
     }
-    sys_free(buf);
-    sys_free(all_blocks);
+    kfree(buf);
+    kfree(all_blocks);
     return false;
 }
 
@@ -70,7 +70,7 @@ bool search_dir_entry(partition_t* part, dir_t* pdir, const char* name, dir_entr
 void dir_close(dir_t* dir) {
     if (dir == &root_dir) return;
     inode_close(dir->inode);
-    sys_free(dir);
+    kfree(dir);
 }
 
 void create_dir_entry(char* filename, uint32_t inode_no, uint32_t file_type, dir_entry_t* p_de) {

@@ -37,7 +37,7 @@ typedef struct task_stack_t {
     uint32_t esi;
     
     //switch_to的返回地址
-    void (*eip)(thread_func func, void* func_arg);
+    void (*eip)(void);
 } task_stack_t;
 
 //内核PCB
@@ -45,6 +45,7 @@ typedef struct task_block_t {
     uint32_t* self_kstack;  //线程在内核态下运行时使用的栈
     uint32_t uid;
     pid_t pid;
+    pid_t ppid; //父进程
     task_status status;
     char name[16];
     uint8_t priority;
@@ -52,10 +53,14 @@ typedef struct task_block_t {
     uint32_t jiffies;
     list_node_t node;
     uint32_t pd_addr;  //进程的页表地址
-    vaddr_pool_t vaddr_pool;    //进程虚拟地址池
+    bitmap_t vaddr_map;    //进程虚拟地址池
     memory_block_desc_t u_block_descs[MEMORY_DESC_CNT]; //用户进程的内存块描述符
     uint32_t magic;
 } task_block_t;
+
+static inline void set_cr3(uint32_t addr) {
+    asm volatile("movl %0, %%cr3"::"r"(addr));
+}
 
 //创建线程
 task_block_t* task_create(char* name, int priority, thread_func function);

@@ -76,17 +76,17 @@ inode_t* inode_open(partition_t* part, uint32_t inode_no) {
     task_block_t* task = running_task();
     uint32_t cur_pagedir = task->pd_addr;
     task->pd_addr = 0;  //偷偷改为内核线程
-    inode_found = (inode_t*)sys_malloc(sizeof(inode_t));
+    inode_found = (inode_t*)kmalloc(sizeof(inode_t));
     task->pd_addr = cur_pagedir;
 
     char *inode_buf;
     const uint32_t buf_secs = inode_pos.two_sec ? 2 : 1;
-    inode_buf = (char*)sys_malloc(512 * buf_secs);
+    inode_buf = (char*)kmalloc(512 * buf_secs);
     ide_read(part->disk, inode_pos.sec_lba, inode_buf, buf_secs);
     memcpy(inode_found, inode_buf + inode_pos.off_size, sizeof(inode_t));
     list_push(&part->open_inodes, &inode_found->inode_node);
     inode_found->i_open_cnts = 1;
-    sys_free(inode_buf);
+    kfree(inode_buf);
     return inode_found;
 }
 
@@ -99,7 +99,7 @@ void inode_close(inode_t* inode) {
         task_block_t* task = running_task();
         uint32_t cur_pagedir = task->pd_addr;
         task->pd_addr = 0;
-        sys_free(inode);
+        kfree(inode);
         task->pd_addr = cur_pagedir;
     }
     set_interrupt_state(state);

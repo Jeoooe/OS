@@ -39,8 +39,6 @@
 enum SYSCALL_NR {
     SYS_GETPID = 0,
     SYS_WRITE,
-    SYS_MALLOC,
-    SYS_FREE,
 };
 
 uint32_t getpid();

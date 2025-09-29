@@ -82,23 +82,33 @@ int memcmp(const void *lhs, const void *rhs, size_t count) {
     return *lptr < *rptr ? -1 : *lptr > *rptr;
 };
 void *memset(void *dest, int ch, size_t count) {
-    char *ptr = dest;
-    while (count) {
-        *ptr = ch;
-        ++ptr;
-        --count;
-    }
+    // char *ptr = dest;
+    // while (count) {
+    //     *ptr = ch;
+    //     ++ptr;
+    //     --count;
+    // }
+    asm(
+        "cld\n"
+        "rep stosb\n"
+        ::"c"(count), "a"(ch), "D"(dest)
+    );
     return dest;
 }
 //复制内存数据
 void *memcpy(void *dest, const void *src, size_t count) {
-    char *ptr = dest;
-    while (count) {
-        *ptr = *((char *)src);
-        ++src;
-        ++ptr;
-        --count;
-    }
+    // char *ptr = dest;
+    // while (count) {
+    //     *ptr = *((char *)src);
+    //     ++src;
+    //     ++ptr;
+    //     --count;
+    // }
+    asm(
+        "cld\n"
+        "rep movsb"
+        ::"c"(count),"D"(dest),"S"(src)
+    );
     return dest;
 };
 void *memchr(const void *str, int ch, size_t count) {

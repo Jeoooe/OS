@@ -26,9 +26,9 @@ static void intr_timer_handler() {
     task_block_t* cur_task = running_task();
     assert(cur_task->magic == MAGIC);
     ticks++;
+    cur_task->ticks--;
     cur_task->jiffies = ticks;
     if (cur_task->ticks == 0) {
-        cur_task->jiffies = ticks;
         schedule();
     }   
     else {

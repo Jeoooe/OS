@@ -6,8 +6,8 @@
 
 #define MEM_BASE 0xb8000
 #define MEM_END 0xc0000
-#define V_MEM_BASE (MEM_BASE | 0xc0000000)
-#define V_MEM_END (MEM_END | 0xc0000000)
+#define V_MEM_BASE (MEM_BASE)
+#define V_MEM_END (MEM_END)
 #define CURSOR_MAX 2000
 #define SCREEN_WIDTH 80
 #define SCREEN_HEIGHT 25
@@ -51,10 +51,15 @@ static inline void set_screen() {
 
 //清除屏幕
 static inline void erase_screen() {
-    uint16_t *ptr = (uint16_t *)V_MEM_BASE;
-    for (;ptr != (uint16_t *)V_MEM_END;) {
-        *ptr++ = 0;
-    }
+    // uint16_t *ptr = (uint16_t *)V_MEM_BASE;
+    // for (;ptr != (uint16_t *)V_MEM_END;) {
+    //     *ptr++ = 0;
+    // }
+    asm(
+        "cld\n"
+        "rep stosl\n"
+        ::"c"((V_MEM_END - V_MEM_BASE) / 4),"a"(0),"D"(V_MEM_BASE)
+    );
 }
 
 //上滚一行

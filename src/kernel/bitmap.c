@@ -1,6 +1,7 @@
 #include <bitmap.h>
 #include <string.h>
 #include <assert.h>
+#include <debug.h>
 
 #define MUL_8(num) ((num) << 3)
 #define DIV_8(num) ((num) >> 3)

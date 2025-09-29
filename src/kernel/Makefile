@@ -34,7 +34,6 @@ $(BUILD)/thread.o \
 $(BUILD)/switch.o \
 $(BUILD)/tss.o \
 $(BUILD)/syscall.o \
-$(BUILD)/stdlib.o \
 $(BUILD)/ide.o \
 
 $(BUILD)/%.o: %.c

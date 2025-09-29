@@ -83,7 +83,7 @@ void bitmap_sync(partition_t* part, uint32_t bit_index, enum bitmap_type btmp) {
 }
 
 int32_t file_create(dir_t* parent_dir, char* filename, uint8_t flag) {
-    void *io_buf = sys_malloc(1024);    //2扇区
+    void *io_buf = kmalloc(1024);    //2扇区
     if (io_buf == NULL) {
         LOGK("Malloc fail [file_create]\n");
         return -1;
@@ -98,7 +98,7 @@ int32_t file_create(dir_t* parent_dir, char* filename, uint8_t flag) {
         return -1;
     }
 
-    inode_t *new_file_inode = (inode_t*)sys_malloc(sizeof(inode_t));
+    inode_t *new_file_inode = (inode_t*)kmalloc(sizeof(inode_t));
     if (new_file_inode == NULL) {
         LOGK("Malloc for inode fail [file_create]\n");
         rollback_step = 1;
@@ -145,7 +145,7 @@ int32_t file_create(dir_t* parent_dir, char* filename, uint8_t flag) {
     list_push(&cur_part->open_inodes, &new_file_inode->inode_node);
     new_file_inode->i_open_cnts = 1;
     
-    sys_free(io_buf);
+    kfree(io_buf);
     return pcb_fd_install(fd_index);
 
     
@@ -156,12 +156,12 @@ rollback:
     case 3:
         memset(&file_table[fd_index], 0, sizeof(file_t));
     case 2:
-        sys_free(new_file_inode);
+        kfree(new_file_inode);
     case 1:
         bitmap_set(&cur_part->inode_bitmap, inode_no, 0);
         break;
     }
-    sys_free(io_buf);
+    kfree(io_buf);
     return -1;
 }
 

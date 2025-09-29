@@ -106,13 +106,13 @@ protect_mode:
     mov eax, cr0
     or eax, 0x80000000
     mov cr0, eax
-    ;gdt更改为内核高地址
-    sgdt [gdt_ptr]
-    add dword [gdt_ptr + 2], 0xc0000000
-    lgdt [gdt_ptr]
-    ;更改栈顶为高地址
-    mov eax, 0xc0010000
-    mov esp, eax
+    ; ;gdt更改为内核高地址
+    ; sgdt [gdt_ptr]
+    ; add dword [gdt_ptr + 2], 0xc0000000
+    ; lgdt [gdt_ptr]
+    ; ;更改栈顶为高地址
+    ; mov eax, 0xc0010000
+    ; mov esp, eax
 
 
     ;读取内核
@@ -120,11 +120,10 @@ protect_mode:
     mov ecx, 10          ;内核起始扇区
     mov bl, 200           ;扇区数量 
     call read_disk
-
     mov eax, gdt_base
     mov ebx, ards_count
 
-    jmp dword code_selector:0xc0010000
+    jmp dword code_selector:0x00010000
 
     ud2         ;表示出错
 
@@ -133,41 +132,41 @@ jmp $
 
 
 page_init:
-    mov ecx, 4096
-    mov esi, 0
 .clear_pd:
-    mov byte [PAGE_DIR_TABLE_POS + esi], 0
-    inc esi
-    loop .clear_pd
+    mov ecx, 0x1000
+    mov edi, PAGE_DIR_TABLE_POS
+    mov eax, 0
+    cld
+    rep stosd
 .create_pde:
     mov eax, PAGE_DIR_TABLE_POS
     add eax, 0x1000
     mov ebx, eax
     or eax, 0b111
     mov [PAGE_DIR_TABLE_POS], eax
-    mov [PAGE_DIR_TABLE_POS + 0xc00], eax
+    ; mov [PAGE_DIR_TABLE_POS + 0xc00], eax ;高地址, 我觉得不需要了
     sub eax, 0x1000
     mov [PAGE_DIR_TABLE_POS + 4092], eax
     mov ecx, 256
-    mov esi, 0
+    mov edi, 0
     mov edx, 0b111
 .create_pte:
-    mov [ebx + esi * 4], edx
+    mov [ebx + edi * 4], edx
     add edx, 4096
-    inc esi
+    inc edi
     loop .create_pte
 
-    mov eax, PAGE_DIR_TABLE_POS
-    add eax, 0x2000
-    or eax, 0b111 
-    mov ebx, PAGE_DIR_TABLE_POS
-    mov ecx, 254
-    mov esi, 769
-.create_kernel_pde:
-    mov [ebx + esi * 4], eax
-    inc esi
-    add eax, 0x1000
-    loop .create_kernel_pde
+;     mov eax, PAGE_DIR_TABLE_POS
+;     add eax, 0x2000
+;     or eax, 0b111 
+;     mov ebx, PAGE_DIR_TABLE_POS
+;     mov ecx, 254
+;     mov esi, 769
+; .create_kernel_pde:
+;     mov [ebx + esi * 4], eax
+;     inc esi
+;     add eax, 0x1000
+;     loop .create_kernel_pde
     ret
 
 read_disk:

@@ -9,7 +9,7 @@
 #include <thread.h>
 #include <userprog.h>
 #include <syscall.h>
-#include <stdlib.h>
+#include <memory.h>
 
 extern void interrupt_init();
 extern void timer_init();
@@ -19,25 +19,18 @@ extern void syscall_init();
 extern void ide_init();
 extern void filesys_init();
 
-extern void* sys_malloc(uint32_t size);
-extern void sys_free(void* ptr);
+
+static void init();
 
 void kernel_main() {
-    LOGK("Kernel Init...", MAGIC);
-    interrupt_init();
+    LOGK("Kernel Init... %d", MAGIC);
 
+    interrupt_init();
     timer_init();
     task_init();
     syscall_init();
 
-    
-    
-
     interrupt_mask(INTERRUPT_TIMER, true);
-    interrupt_mask(INTERRUPT_SLAVE, true);
-    interrupt_mask(INTERRUPT_HARDDISK_MASTER, true);
-    interrupt_mask(INTERRUPT_HARDDISK_SLAVE, true);
-
     set_interrupt_state(true);
     //进入用户模式
     asm(
@@ -54,11 +47,33 @@ void kernel_main() {
         "movl %%eax, %%fs\n"
         :::"ax"  
     );
+
+    init();
+
+    while (1)
+        ;
+
+    
+    
+
+    
+    interrupt_mask(INTERRUPT_SLAVE, true);
+    interrupt_mask(INTERRUPT_HARDDISK_MASTER, true);
+    interrupt_mask(INTERRUPT_HARDDISK_SLAVE, true);
+
+   
     //从这里开始是用户态
     
     BMB;
-    while (1)
-        ;
+    while (1) {
+        asm volatile("sti;hlt");
+        task_block(TASK_BLOCKED);
+    }
+        
     ide_init();
     keyboard_init();
+}
+
+void init() {
+    printf("Init...\n");
 }

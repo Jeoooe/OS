@@ -239,7 +239,7 @@ static void identify_disk(disk_t* hd) {
 }
 
 static void partition_scan(disk_t *hd, uint32_t ext_lba) {
-    boot_sector_t* bs = sys_malloc(sizeof(boot_sector_t));
+    boot_sector_t* bs = kmalloc(sizeof(boot_sector_t));
     ide_read(hd, ext_lba, bs, 1);
     uint8_t i = 0;
     partition_table_entry_t* p = bs->partition_table;
@@ -277,7 +277,7 @@ static void partition_scan(disk_t *hd, uint32_t ext_lba) {
         }
         p++;
     }
-    sys_free(bs);
+    kfree(bs);
 }
 
 static void partition_info(list_node_t* elem) {
