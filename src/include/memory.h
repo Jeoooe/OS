@@ -8,21 +8,11 @@
 #define PAGE_SIZE 0x1000
 #define PDIR_BASE 0x100000
 
-#define MEMORY_DESC_CNT 7
-
-
-// typedef enum pool_flag {
-//     PF_KERNEL = 1,
-//     PF_USER
-// } pool_flag;
-
-// typedef struct vaddr_pool_t {
-//     bitmap_t bmap;
-// } vaddr_pool_t;
-
-// typedef struct memory_block_t {
-//     list_node_t node;
-// } memory_block_t;
+#define USER_EXEC_START 0x1000000
+#define USER_STACK_TOP 0x8000000
+#define USER_STACK_SIZE 0x200000
+#define USER_STACK_BOTTOM USER_STACK_TOP - USER_STACK_SIZE
+#define USER_BRK_INIT USER_EXEC_START + 0x200000
 
 
 typedef struct memory_block_desc_t {
@@ -45,7 +35,8 @@ typedef struct arena_t {
 //申请连续内存页 失败返回NULL
 // void* get_page(pool_flag flag, uint32_t cnt);
 
-//申请连续内核内存页 失败返回NULL
+//申请连续内核内存页 失败返回NULL 
+//只会影响内核虚拟位图
 void* get_kpages(uint32_t cnt);
 
 //申请连续用户级内存页 失败返回NULL

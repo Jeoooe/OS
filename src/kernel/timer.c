@@ -31,9 +31,6 @@ static void intr_timer_handler() {
     if (cur_task->ticks == 0) {
         schedule();
     }   
-    else {
-        cur_task->ticks --;
-    }
 }
 
 static void ticks_to_sleep(uint32_t sleep_ticks) {

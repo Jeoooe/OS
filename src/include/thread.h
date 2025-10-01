@@ -45,16 +45,17 @@ typedef struct task_block_t {
     uint32_t* self_kstack;  //线程在内核态下运行时使用的栈
     uint32_t uid;
     pid_t pid;
-    pid_t ppid; //父进程
+    pid_t ppid;
     task_status status;
     char name[16];
     uint8_t priority;
     uint8_t ticks;
     uint32_t jiffies;
+    uint32_t brk;
     list_node_t node;
     uint32_t pd_addr;  //进程的页表地址
-    bitmap_t vaddr_map;    //进程虚拟地址池
-    memory_block_desc_t u_block_descs[MEMORY_DESC_CNT]; //用户进程的内存块描述符
+    bitmap_t *vaddr_map;    //进程虚拟地址池
+    // memory_block_desc_t u_block_descs[MEMORY_DESC_CNT]; //用户进程的内存块描述符
     uint32_t magic;
 } task_block_t;
 

@@ -36,7 +36,6 @@ typedef struct interrupt_stack_t {
     uint32_t fs;
     uint32_t es;
     uint32_t ds;
-    //以下特权级转换的时候才有
     uint32_t err_code;
     void (*eip)(void);
     uint32_t cs;

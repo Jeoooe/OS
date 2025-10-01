@@ -39,9 +39,11 @@
 enum SYSCALL_NR {
     SYS_GETPID = 0,
     SYS_WRITE,
+    SYS_FORK = 57,
 };
 
 uint32_t getpid();
 size_t write(int fd, const char* buf, size_t count);
+extern int fork();
 
 #endif

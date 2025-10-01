@@ -119,11 +119,15 @@ static void pic_init() {
     outb(PIC_S_DATA, 0xff);
 }
 
+extern void page_fault(uint8_t vector); //from memory.c
 static void handlers_init() {
     int i;
     for (i = 0;i < INTR_DESC_COUNT;i++) {
         handler_table[i] = default_handler;
     }
+
+    //缺页异常
+    handler_table[14] = page_fault;
 }
 
 void interrupt_init() {

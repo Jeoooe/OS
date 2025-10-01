@@ -1,13 +1,7 @@
 #include <os.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <debug.h>
-#include <console.h>
-#include <assert.h>
 #include <interrupt.h>
-#include <memory.h>
+#include <debug.h>
 #include <thread.h>
-#include <userprog.h>
 #include <syscall.h>
 #include <memory.h>
 
@@ -34,7 +28,8 @@ void kernel_main() {
     set_interrupt_state(true);
     //进入用户模式
     asm(
-        "movl %%esp, %%eax\n"
+        // "subl $0x300, %%esp\n"
+        "movl %0, %%eax\n"
         "pushl $0x2b\n"
         "pushl %%eax\n"
         "pushfl\n"
@@ -45,7 +40,7 @@ void kernel_main() {
         "movl %%eax, %%ds\n"
         "movl %%eax, %%es\n"
         "movl %%eax, %%fs\n"
-        :::"ax"  
+        ::"i"(USER_STACK_TOP):"ax"  
     );
 
     init();
@@ -75,5 +70,9 @@ void kernel_main() {
 }
 
 void init() {
-    printf("Init...\n");
+    BMB;
+    fork();
+
+    while (1)
+        ;
 }

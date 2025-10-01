@@ -10,6 +10,7 @@ _start:
     push eax    ; gdt_base
     call console_init
     call memory_init
+    add esp, 8
     call tss_init
     call kernel_main
     jmp $

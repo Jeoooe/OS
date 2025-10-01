@@ -43,8 +43,3 @@ dep:
 ### Dependencies
 printf.o: printf.c ../include/stdio.h ../include/stdarg.h \
  ../include/syscall.h ../include/stdint.h
-process.o: process.c ../include/interrupt.h ../include/stdint.h \
- ../include/userprog.h ../include/thread.h ../include/list.h \
- ../include/bitmap.h ../include/memory.h ../include/global.h \
- ../include/assert.h ../include/tss.h ../include/string.h ../include/os.h \
- ../include/debug.h

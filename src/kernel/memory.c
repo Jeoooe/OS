@@ -9,7 +9,7 @@
 
 // #define PAGE_SIZE 4096  //4kb
 
-#define MAX_PHYSICAL_MEMORY 32 //支持512MB物理内存
+#define MAX_PHYSICAL_MEMORY 32 //支持32MB物理内存
 #define PAGE_DIR_BASE 0x100000  //页目录地址
 #define PAGE_TABLE_BASE (PAGE_DIR_BASE + 0x1000)  //第0个页表 
 #define PAGE_TABLE_END (PAGE_DIR_BASE +  0x2000) //除去页表后可用地址开头
@@ -26,22 +26,30 @@
 #define MEM_MAP_SIZE (MAX_PHYSICAL_SIZE - LOW_1M_PAGE_CNT)
 
 //虚拟内存相关
-#define VADDR_SIZE 0x20000             //虚拟内存位图字节数, 映射4GB
+//内核虚拟内存 128MB 刚好一页
+#define VADDR_SIZE 0x1000             //虚拟内存位图字节数, 映射4GB
 #define VADDR_MAP_BASE (0x9F000 - VADDR_SIZE)
 #define VADDR_START 0x100000
 
 
 //运算宏
 //获取页目录项
-#define PDE_VADDR(vaddr) (0xFFFFF000 | ((vaddr >> 20) & (~0b11)))
-#define PTE_VADDR(vaddr) \
-(0xFFC00000 | (vaddr >> 22) |((vaddr >> 10) & (~0b11)))
+#define PDE_VADDR(vaddr) (0xFFFFF000 | (((vaddr) >> 20) & (~0b11)))
+#define PTE_VADDR(vaddr) (0xFFC00000 | (((vaddr) >> 10) & (~0b11)))
 
+//物理地址转为物理地址数组索引
+#define MEM_TO_INDEX(paddr) (((paddr) >> 12) - LOW_1M_PAGE_CNT)
+
+//虚拟地址转物理地址
+#define vaddr_to_paddr(vaddr) (*(uint32_t*)PTE_VADDR(vaddr) & 0xFFFFF000)
 
 static uint8_t memory_map[MEM_MAP_SIZE];    //物理内存数组
-bitmap_t vaddr_map;                  //虚拟内存位图
+bitmap_t kernel_vaddr_map;                  //虚拟内存位图
 memory_block_desc_t block_desc[7];
+uint32_t max_physical_memory_size;
 
+
+#define MEM_MAP_INDEX_LIMIT (max_physical_memory_size / PAGE_SIZE - LOW_1M_PAGE_CNT)
 //刷新快表
 #define flush_tlb(vaddr) asm volatile("invlpg (%0)"::"r"(vaddr):"memory")
 
@@ -62,21 +70,20 @@ static uint32_t get_free_page() {
         "movl %%ebx, %0\n"
         "1:\n"
         :"=a"(res)
-        :"0"(0),"i"(LOW_1M),"b"(MEM_MAP_SIZE),"D"(memory_map)
+        :"0"(0),"i"(LOW_1M),"b"(MEM_MAP_INDEX_LIMIT),"D"(memory_map)
     );
     return res;
 }
 
 //映射一页
-static void link_page(uint32_t vaddr, uint32_t paddr) {
-    bitmap_t* vmap = &vaddr_map;
+static void link_page(bitmap_t* vmap, uint32_t vaddr, uint32_t paddr) {
     uint32_t *pde = (uint32_t*)PDE_VADDR(vaddr);
     uint32_t *pte = (uint32_t*)PTE_VADDR(vaddr);
     //检测页目录项是否存在
     if (!(*pde & 1)) {
         uint32_t new_page_table = get_free_page();
         *pde = new_page_table | 0b111;
-        memset(pte, 0, PAGE_SIZE);
+        memset((void*)((uint32_t)pte & 0xFFFFF000), 0, PAGE_SIZE);
     }
     *pte = paddr | 0b111;
     bitmap_set(vmap, (vaddr - vmap->offset) >> 12 , true);
@@ -84,7 +91,7 @@ static void link_page(uint32_t vaddr, uint32_t paddr) {
 }
 
 static void unlink(uint32_t vaddr) {
-    bitmap_t* vmap = &vaddr_map;
+    bitmap_t* vmap = &kernel_vaddr_map;
     // uint32_t *pde = (uint32_t*)PDE_VADDR(vaddr);
     uint32_t *pte = (uint32_t*)PTE_VADDR(vaddr);
     const uint32_t pindex = ((*pte) >> 12 )- LOW_1M_PAGE_CNT;
@@ -103,17 +110,17 @@ static void unlink(uint32_t vaddr) {
 //获取连续页
 void* get_kpages(uint32_t cnt) {
     //获取虚拟地址    
-    bitmap_t* vmap = &vaddr_map;
+    bitmap_t* vmap = &kernel_vaddr_map;
     const uint32_t bit_idx = bitmap_scan(vmap, cnt);
     if (bit_idx == -1) {
         return NULL;
     }
-    const uint32_t vaddr_start = (bit_idx << 12) + vaddr_map.offset;
+    const uint32_t vaddr_start = (bit_idx << 12) + kernel_vaddr_map.offset;
     uint32_t vaddr = vaddr_start;
     //获取物理页
     while (cnt-- >0) {
         uint32_t paddr = get_free_page();
-        link_page(vaddr, paddr);
+        link_page(&kernel_vaddr_map, vaddr, paddr);
         vaddr += 0x1000;
     }
     return (void*)vaddr_start;
@@ -128,6 +135,9 @@ void free_kpages(uint32_t vaddr, uint32_t cnt) {
     }
 }
 
+/*
+ * 内存管理初始化
+*/
 void memory_init(uint32_t __, uint32_t ards_addr) {
     // LOGK("可用内存的开头%d", MEM_MAP_END);
     /* 获取物理内存容量 */
@@ -148,12 +158,20 @@ void memory_init(uint32_t __, uint32_t ards_addr) {
         ards++;
     }
     LOGK("MEMORY SIZE: 0x%x", phy_max_size);
+    //全局变量
+    max_physical_memory_size = phy_max_size;
+
+    //设置0-0x1000不可用
+    uint32_t *tmp_page_entry = (uint32_t*)0xFFC00000;
+    *tmp_page_entry = 0;
 
     //设定可用内存与不可用内存
     memset(memory_map, -1, AVAI_MEM_INDEX);
     memset((void*)((uint32_t)memory_map + AVAI_MEM_INDEX), 0, MEM_MAP_SIZE - AVAI_MEM_INDEX);
 
-    bitmap_init(&vaddr_map, (uint8_t*)VADDR_MAP_BASE, VADDR_SIZE, VADDR_START);
+    
+
+    bitmap_init(&kernel_vaddr_map, (uint8_t*)VADDR_MAP_BASE, VADDR_SIZE, VADDR_START);
 
     // 堆内存初始化
     uint32_t size = 16;
@@ -166,6 +184,10 @@ void memory_init(uint32_t __, uint32_t ards_addr) {
     }
 }
 
+
+/*
+    堆内存分配
+*/
 
 static inline void* arena2block(arena_t* a, size_t i) {
     return (void*)((uint32_t)a + i * a->desc->block_size + sizeof(arena_t));
@@ -229,4 +251,75 @@ void kfree(void* ptr) {
         }
         free_kpages((uint32_t)arena, 1);
     }
+}
+
+
+//给任务复制页表
+//exit的时候释放
+void copy_page_table(task_block_t* to) {
+    uint32_t *new_page_dir = (uint32_t*)get_kpages(1);
+    uint32_t *cur_page_dir = (uint32_t*)(0xFFFFF000);
+    //设置最后一项为自己
+    uint32_t paddr = vaddr_to_paddr((uint32_t)new_page_dir);
+    new_page_dir[1023] = paddr | 0b111;
+    for (size_t i = 0;i < 1023;i++) {
+        uint32_t* pde = &cur_page_dir[i];
+        if (*pde == 0) continue;
+        //存在页目录项
+        uint32_t *page_table = (uint32_t*)(0xFFC00000 | (i << 12));
+        //设置只读, 物理内存引用+1
+        for (size_t j = 0;j < 1024;j++) {
+            uint32_t *pte = &page_table[j];
+            if (*pte == 0) continue;
+            //页表存在
+            //低1M不用共享
+            if ((*pte >> 12) < 256) continue;
+            *pte &= ~(0b10);    //置为只读
+            memory_map[MEM_TO_INDEX(*pte & 0xFFFFF000)]++;
+        }
+        //复制页表
+        uint32_t paddr = get_free_page();
+        //利用第0页
+        uint32_t *tmp_page_entry = (uint32_t*)0xFFC00000;
+        *tmp_page_entry = paddr | 0b111;
+        flush_tlb(0);
+        memcpy((void*)0, page_table, PAGE_SIZE);
+        *tmp_page_entry = 0;
+        //设置页目录项
+        new_page_dir[i] = paddr | 0b111;
+    }
+    to->pd_addr = vaddr_to_paddr((uint32_t)new_page_dir);
+}
+
+static inline uint32_t get_cr2() {
+    register uint32_t res;
+    asm("movl %%cr2, %0":"=r"(res));
+    return res;
+}
+
+// 缺页异常
+void page_fault(uint8_t vector, 
+    uint32_t edi, uint32_t esi, uint32_t ebp, uint32_t esp, 
+    uint32_t ebx, uint32_t edx, uint32_t ecx, uint32_t eax, 
+    uint32_t gs, uint32_t fs, uint32_t es, uint32_t ds, 
+    uint32_t error_code
+) {
+    uint32_t vaddr = get_cr2();
+    task_block_t* task = running_task();
+
+    //特殊情况
+    if (vaddr < USER_EXEC_START) {
+        panic("Page fault in kernel page");
+    }
+
+    //页不存在
+    if ((error_code & 1) == 0) {
+        if (!(vaddr >= USER_STACK_BOTTOM || vaddr <= task->brk)) {
+            panic("Page fault out of user range");
+        }
+        //申请一页
+        uint32_t new_page = get_free_page();
+        link_page(task->vaddr_map, vaddr & 0xFFFFF000, new_page);
+    }
+    //页不可写
 }

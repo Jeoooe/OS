@@ -123,6 +123,7 @@ protect_mode:
     mov eax, gdt_base
     mov ebx, ards_count
 
+
     jmp dword code_selector:0x00010000
 
     ud2         ;表示出错
@@ -140,14 +141,13 @@ page_init:
     rep stosd
 .create_pde:
     mov eax, PAGE_DIR_TABLE_POS
-    add eax, 0x1000
-    mov ebx, eax
-    or eax, 0b111
-    mov [PAGE_DIR_TABLE_POS], eax
+    or eax, 7
     ; mov [PAGE_DIR_TABLE_POS + 0xc00], eax ;高地址, 我觉得不需要了
-    sub eax, 0x1000
     mov [PAGE_DIR_TABLE_POS + 4092], eax
-    mov ecx, 256
+    add eax, 0x1000
+    mov [PAGE_DIR_TABLE_POS], eax
+    mov ebx, PAGE_DIR_TABLE_POS + 0x1000
+    mov ecx, 256        ;0 - 0x1000 不映射
     mov edi, 0
     mov edx, 0b111
 .create_pte:
