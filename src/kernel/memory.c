@@ -6,11 +6,12 @@
 #include <bitmap.h>
 #include <assert.h>
 #include <thread.h>
+#include <interrupt.h>
 
 // #define PAGE_SIZE 4096  //4kb
 
 #define MAX_PHYSICAL_MEMORY 32 //支持32MB物理内存
-#define PAGE_DIR_BASE 0x100000  //页目录地址
+#define PAGE_DIR_BASE PDIR_BASE  //页目录地址
 #define PAGE_TABLE_BASE (PAGE_DIR_BASE + 0x1000)  //第0个页表 
 #define PAGE_TABLE_END (PAGE_DIR_BASE +  0x2000) //除去页表后可用地址开头
 #define MAX_PHYSICAL_SIZE (MAX_PHYSICAL_MEMORY<<20) / PAGE_SIZE //最大页数
@@ -38,7 +39,7 @@
 #define PTE_VADDR(vaddr) (0xFFC00000 | (((vaddr) >> 10) & (~0b11)))
 
 //物理地址转为物理地址数组索引
-#define MEM_TO_INDEX(paddr) (((paddr) >> 12) - LOW_1M_PAGE_CNT)
+#define PADDR_TO_INDEX(paddr) (((paddr) >> 12) - LOW_1M_PAGE_CNT)
 
 //虚拟地址转物理地址
 #define vaddr_to_paddr(vaddr) (*(uint32_t*)PTE_VADDR(vaddr) & 0xFFFFF000)
@@ -253,7 +254,6 @@ void kfree(void* ptr) {
     }
 }
 
-
 //给任务复制页表
 //exit的时候释放
 void copy_page_table(task_block_t* to) {
@@ -262,20 +262,20 @@ void copy_page_table(task_block_t* to) {
     //设置最后一项为自己
     uint32_t paddr = vaddr_to_paddr((uint32_t)new_page_dir);
     new_page_dir[1023] = paddr | 0b111;
-    for (size_t i = 0;i < 1023;i++) {
+    for (size_t i = 0;i < 1023;i++) {   //遍历页目录项
         uint32_t* pde = &cur_page_dir[i];
         if (*pde == 0) continue;
         //存在页目录项
         uint32_t *page_table = (uint32_t*)(0xFFC00000 | (i << 12));
         //设置只读, 物理内存引用+1
-        for (size_t j = 0;j < 1024;j++) {
+        for (size_t j = 0;j < 1024;j++) {   //遍历页表项
             uint32_t *pte = &page_table[j];
             if (*pte == 0) continue;
             //页表存在
             //低1M不用共享
             if ((*pte >> 12) < 256) continue;
             *pte &= ~(0b10);    //置为只读
-            memory_map[MEM_TO_INDEX(*pte & 0xFFFFF000)]++;
+            memory_map[PADDR_TO_INDEX(*pte & 0xFFFFF000)]++;
         }
         //复制页表
         uint32_t paddr = get_free_page();
@@ -284,7 +284,12 @@ void copy_page_table(task_block_t* to) {
         *tmp_page_entry = paddr | 0b111;
         flush_tlb(0);
         memcpy((void*)0, page_table, PAGE_SIZE);
+        if (i == 0) {  //第0个页目录项，即第0个页表
+            //则置第0个页表项为0
+            *(uint32_t*)0 = 0;
+        }
         *tmp_page_entry = 0;
+        flush_tlb(0);
         //设置页目录项
         new_page_dir[i] = paddr | 0b111;
     }
@@ -297,6 +302,33 @@ static inline uint32_t get_cr2() {
     return res;
 }
 
+//写时复制实现
+//目前仅共享物理页框, 因此只复制页框
+static void copy_on_write(task_block_t* cur_task, uint32_t vaddr) {
+    vaddr &= 0xFFFFF000;    //需要是页开头
+
+    uint32_t paddr = vaddr_to_paddr(vaddr);
+    uint32_t index = PADDR_TO_INDEX(paddr);
+    uint32_t *pte = (uint32_t*)PTE_VADDR(vaddr);
+
+    assert(memory_map[index] > 0);
+    assert(!get_interrupt_state()); //最好是关中断吧
+
+    if (memory_map[index] > 1) {   //如果有任务在共享
+        uint32_t paddr =get_free_page();
+        uint32_t *tmp_pte = (uint32_t*)0xFFC00000;
+        //然后复制一个页框
+        *tmp_pte = paddr | 7;
+        flush_tlb(0);
+        memcpy((void*)0, (void*)vaddr, PAGE_SIZE);
+        *tmp_pte = 0;   //恢复0为空
+        flush_tlb(0);
+        *pte = paddr | 7;
+        memory_map[index]--;
+    }
+    *pte |= 0b10;   //RW位置1
+}
+
 // 缺页异常
 void page_fault(uint8_t vector, 
     uint32_t edi, uint32_t esi, uint32_t ebp, uint32_t esp, 
@@ -306,6 +338,7 @@ void page_fault(uint8_t vector,
 ) {
     uint32_t vaddr = get_cr2();
     task_block_t* task = running_task();
+    assert(vaddr > 0x1000); //不在开头一页
 
     //特殊情况
     if (vaddr < USER_EXEC_START) {
@@ -320,6 +353,12 @@ void page_fault(uint8_t vector,
         //申请一页
         uint32_t new_page = get_free_page();
         link_page(task->vaddr_map, vaddr & 0xFFFFF000, new_page);
+        return;
     }
     //页不可写
+    if ((error_code & 2)) {    
+        //写时复制
+        copy_on_write(task, vaddr);
+        return;
+    }
 }

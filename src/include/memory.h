@@ -5,7 +5,7 @@
 #include <bitmap.h>
 #include <list.h>
 
-#define PAGE_SIZE 0x1000
+#define PAGE_SIZE 0x1000        //页大小
 #define PDIR_BASE 0x100000
 
 #define USER_EXEC_START 0x1000000

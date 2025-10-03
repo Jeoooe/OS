@@ -59,9 +59,7 @@ typedef struct task_block_t {
     uint32_t magic;
 } task_block_t;
 
-static inline void set_cr3(uint32_t addr) {
-    asm volatile("movl %0, %%cr3"::"r"(addr));
-}
+#define set_cr3(paddr) asm volatile("movl %0, %%cr3"::"r"(paddr))
 
 //创建线程
 task_block_t* task_create(char* name, int priority, thread_func function);

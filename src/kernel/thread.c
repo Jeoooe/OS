@@ -213,6 +213,7 @@ static void task_setup() {
     task->brk = USER_BRK_INIT;
     task->ticks = task->priority;
     task->vaddr_map = &kernel_vaddr_map;
+    task->pd_addr = PDIR_BASE;
     update_tss_esp(task);
     all_threads[1] = task;
 }
@@ -263,6 +264,9 @@ int sys_fork() {
 
     //复制页目录及页表
     copy_page_table(child);
+
+    //重置一下页表
+    set_cr3(cur->pd_addr);
 
     
     return pid;

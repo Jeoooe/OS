@@ -5,6 +5,8 @@
 #include <syscall.h>
 #include <memory.h>
 
+#include <stdio.h>
+
 extern void interrupt_init();
 extern void timer_init();
 extern void task_init();
@@ -12,7 +14,6 @@ extern void keyboard_init();
 extern void syscall_init();
 extern void ide_init();
 extern void filesys_init();
-
 
 static void init();
 
@@ -42,6 +43,7 @@ void kernel_main() {
         "movl %%eax, %%fs\n"
         ::"i"(USER_STACK_TOP):"ax"  
     );
+    //从这里开始是用户态
 
     init();
 
@@ -57,21 +59,23 @@ void kernel_main() {
     interrupt_mask(INTERRUPT_HARDDISK_SLAVE, true);
 
    
-    //从这里开始是用户态
-    
-    BMB;
-    while (1) {
-        asm volatile("sti;hlt");
-        task_block(TASK_BLOCKED);
-    }
-        
     ide_init();
     keyboard_init();
 }
 
 void init() {
     BMB;
-    fork();
+    int x = 0, y = 0;
+    int pid = fork();
+
+    if (pid == 0) { //子进程
+        x = 100;
+        printf("Kid\n");
+    }
+    else {
+        y = 2000;
+        printf("Father has %d\n", pid);;
+    }
 
     while (1)
         ;
