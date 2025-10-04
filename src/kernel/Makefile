@@ -35,6 +35,7 @@ $(BUILD)/switch.o \
 $(BUILD)/tss.o \
 $(BUILD)/syscall.o \
 $(BUILD)/sysc.o \
+$(BUILD)/exit.o \
 $(BUILD)/ide.o \
 
 $(BUILD)/%.o: %.c

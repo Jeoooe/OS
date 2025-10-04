@@ -10,6 +10,8 @@
 #include <bitmap.h>
 #include <memory.h>
 
+#define MAX_THREAD_COUNT 64
+
 #define MAX_FILES_OPEN_PER_PROC 8
 
 typedef void (*thread_func)(void);
@@ -43,6 +45,7 @@ typedef struct task_stack_t {
 //内核PCB
 typedef struct task_block_t {
     uint32_t* self_kstack;  //线程在内核态下运行时使用的栈
+    uint32_t error_code;    //调用exit后保存的值
     uint32_t uid;
     pid_t pid;
     pid_t ppid;

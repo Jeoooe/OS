@@ -9,8 +9,6 @@
 #include <stdio.h>
 #include <tss.h>
 
-#define MAX_THREAD_COUNT 64
-
 #define get_cr3(n) asm("movl %%cr3, %%eax; movl %%eax, %0":"=r"(n))
 
 extern bitmap_t kernel_vaddr_map; //from memory.c 内核虚拟内存位图
@@ -37,6 +35,16 @@ task_block_t* get_free_task() {
     return NULL;
 }
 
+//根据pid获取任务
+task_block_t* get_task_by_pid(pid_t pid) {
+    return all_threads[pid];
+}
+
+//根据pid获取下标
+size_t get_index_by_pid(pid_t pid) {
+    return pid;
+}
+
 task_block_t* running_task() {
     uint32_t esp;
     asm volatile("movl %%esp, %0" : "=g"(esp));
@@ -44,6 +52,7 @@ task_block_t* running_task() {
 }
 
 static void idle_thread() {
+    ;
     while(1) {
         asm volatile("sti\nhlt");
         task_block(TASK_BLOCKED);
@@ -68,7 +77,7 @@ static void process_activate(task_block_t *task) {
 void schedule() {
     assert(!get_interrupt_state()); //处于关中断状态
     task_block_t *cur = running_task();
-    task_block_t *next;
+    task_block_t *next = NULL;
     for (size_t i = 1;i < MAX_THREAD_COUNT;i++) {
         if (all_threads[i] == NULL) continue;
         if (all_threads[i] == cur) continue;
@@ -182,25 +191,32 @@ task_block_t* task_create(char* name,
     return task;
 }
 
+extern void intr_exit();
+
 static void task_setup() {
     memset(all_threads, 0, sizeof(all_threads));
     /* Idle 进程 */
     task_block_t* task = get_free_task();
     memset(task, 0, PAGE_SIZE);
     task->uid = UID_KERNEL;
-    task->status = TASK_READY;
+    task->status = TASK_BLOCKED;
     task->priority = 8;
     task->ticks = 8;
     task->jiffies = 0;
-    task->brk = 0;
-    task->pd_addr = 0;
+    task->brk = 0x100000;
+    task->pd_addr = PDIR_BASE;
     task->self_kstack = (uint32_t*)((uint32_t)task + PAGE_SIZE);
     task->self_kstack -= sizeof(interrupt_stack_t);
     task->self_kstack -= sizeof(task_stack_t);
     task->magic = MAGIC;
     task_stack_t* kstack = (task_stack_t*)task->self_kstack;
-    kstack->eip = idle_thread;
+    kstack->eip = intr_exit;
     kstack->ebp = kstack->ebx = kstack->edi = kstack->esi = 0;
+    interrupt_stack_t* istack = (interrupt_stack_t*)((uint32_t)task->self_kstack + sizeof(task_stack_t));
+    istack->eip = idle_thread;
+    istack->ss = 0x10;
+    istack->cs = 0x8;
+    istack->esp = (uint32_t)task + PAGE_SIZE;
 
     /* Init 进程*/
     task = running_task();
@@ -228,7 +244,7 @@ void task_init() {
 
 
 extern void copy_page_table(task_block_t* to); //from memory.c
-extern void intr_exit();
+
 //系统调用fork
 int sys_fork() {
     task_block_t* cur = running_task();

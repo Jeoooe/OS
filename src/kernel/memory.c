@@ -91,8 +91,7 @@ static void link_page(bitmap_t* vmap, uint32_t vaddr, uint32_t paddr) {
     flush_tlb(vaddr);
 }
 
-static void unlink(uint32_t vaddr) {
-    bitmap_t* vmap = &kernel_vaddr_map;
+static void unlink(bitmap_t* vmap, uint32_t vaddr) {
     // uint32_t *pde = (uint32_t*)PDE_VADDR(vaddr);
     uint32_t *pte = (uint32_t*)PTE_VADDR(vaddr);
     const uint32_t pindex = ((*pte) >> 12 )- LOW_1M_PAGE_CNT;
@@ -131,7 +130,7 @@ void* get_kpages(uint32_t cnt) {
 void free_kpages(uint32_t vaddr, uint32_t cnt) {
     assert(vaddr >= LOW_1M);
     while (cnt-- > 0) {
-        unlink(vaddr);
+        unlink(&kernel_vaddr_map, vaddr);
         vaddr += 0x1000;
     }
 }
@@ -254,8 +253,52 @@ void kfree(void* ptr) {
     }
 }
 
-//给任务复制页表
-//exit的时候释放
+/*
+    以下任务进程相关
+*/
+
+
+#define INDEX_TO_PGTABLE(index) (uint32_t*)(0xFFC00000 | (index << 12))
+/*
+    释放任务所占用的内存资源
+    用于exit()
+    此函数释放逻辑与写时复制有关联, 若改动写时复制逻辑可能需要同步改动此函数
+    这里只是减少物理内存数组里的占用, 并不会改动页表和页目录的内容
+*/
+void release_memory(task_block_t* task) {
+    assert(task != NULL);
+    assert(!get_interrupt_state()); //关中断状态
+    //事实上, 我好像并不需要清除资源, 只需要解映射就行了
+
+    uint32_t *pd = (uint32_t*)0xFFFFF000;
+    for (size_t i = 0;i < 1023;i++) {   //遍历页目录项
+        uint32_t *pde = &pd[i];
+        if (!(*pde & 1))  //页目录项不存在
+            continue;      
+        uint32_t *pgtable = INDEX_TO_PGTABLE(i);
+        for (size_t j = 0;j < 1024;j++) {   //遍历页表项
+            uint32_t *pte = &pgtable[j];
+            if (!(*pte & 1))    //页表项不存在 
+                continue;
+            uint32_t paddr = *pte & 0xFFFFF000;   //页框
+            if (paddr < LOW_1M) 
+                continue;  //小于1M的内核空间不做处理
+            uint32_t mem_index = PADDR_TO_INDEX(paddr);
+            memory_map[mem_index]--;
+        }
+        uint32_t pgtable_paddr = *pde & 0xFFFFF000;
+        memory_map[PADDR_TO_INDEX(pgtable_paddr)]--;
+    }
+    //页目录也释放掉
+    uint32_t pd_paddr = task->pd_addr;
+    memory_map[PADDR_TO_INDEX(pd_paddr)]--; 
+}
+
+
+/*  
+    给任务复制页表, 用于fork()
+    要在exit的时候释放
+*/
 void copy_page_table(task_block_t* to) {
     uint32_t *new_page_dir = (uint32_t*)get_kpages(1);
     uint32_t *cur_page_dir = (uint32_t*)(0xFFFFF000);

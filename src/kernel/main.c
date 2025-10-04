@@ -71,10 +71,12 @@ void init() {
     if (pid == 0) { //子进程
         x = 100;
         printf("Kid\n");
+        exit(x);
     }
     else {
-        y = 2000;
-        printf("Father has %d\n", pid);;
+        int status;
+        waitpid(pid, &status, 0);
+        printf("Father has %d, status: %d\n", pid, status);
     }
 
     while (1)
