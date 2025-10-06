@@ -14,6 +14,7 @@ extern void keyboard_init();
 extern void syscall_init();
 extern void ide_init();
 extern void filesys_init();
+extern void device_init();
 
 static void init();
 
@@ -24,6 +25,9 @@ void kernel_main() {
     timer_init();
     task_init();
     syscall_init();
+
+    //设备有关
+    device_init();
 
     interrupt_mask(INTERRUPT_TIMER, true);
     set_interrupt_state(true);

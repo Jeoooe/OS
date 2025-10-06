@@ -20,6 +20,8 @@ typedef int size_t;
 
 typedef int16_t pid_t;
 
+typedef int dev_t;
+
 
 #define _packed __attribute__((packed))
 

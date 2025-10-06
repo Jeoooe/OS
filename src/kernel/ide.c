@@ -7,6 +7,7 @@
 #include <interrupt.h>
 #include <os.h>
 #include <string.h>
+#include <device/dev.h>
 
 #define reg_data(channel)         (channel->port_base + 0) 
 #define reg_error(channel)        (channel->port_base + 1) 
@@ -38,10 +39,14 @@
 #define CMD_WRITE_SECTOR   0x30   // 写扇区指令 
 
 /* 定义可读写的最大扇区数，调试用的 */ 
-#define max_lba ((80*1024*1024/512) - 1)  // 只支持80MB硬盘 
+#define HARDDISK_MAX_MEMORY 80
+#define max_lba ((HARDDISK_MAX_MEMORY*1024*1024/512) - 1)  // 只支持80MB硬盘 
+
+#define NR_CHANNEL 2
+#define NR_HARDDISK 2 * NR_CHANNEL
 
 uint8_t channel_cnt;
-ide_channel_t channels[2];
+ide_channel_t channels[NR_CHANNEL];
 
 int32_t ext_lba_base = 0;   //总扩展分区起始lba
 uint8_t partition_no = 0, logical_no = 0;
@@ -146,7 +151,7 @@ static bool busy_wait(disk_t* hd) {
 }
 
 //读取sec_cnt个扇区
-void ide_read(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt) {
+void ide_read(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt, int flag) {
     assert(lba <= max_lba);
     assert(sec_cnt > 0);
     lock_acquire(&hd->ide->lock);
@@ -175,7 +180,7 @@ void ide_read(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt) {
     lock_release(&hd->ide->lock);
 }
 
-void ide_write(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt) {
+void ide_write(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt, int flag) {
     assert(lba <= max_lba);
     assert(sec_cnt > 0);
     lock_acquire(&hd->ide->lock);
@@ -212,6 +217,14 @@ void ide_write(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt) {
     lock_release(&hd->ide->lock);
 }
 
+void ide_part_read(partition_t *part, uint32_t lba, void* buf, uint32_t sec_cnt, int flag) {
+    ide_read(part->disk, lba, buf, sec_cnt, flag);
+}
+
+void ide_part_write(partition_t *part, uint32_t lba, void* buf, uint32_t sec_cnt, int flag) {
+    ide_write(part->disk, lba, buf, sec_cnt, flag);
+}
+
 //获取硬盘参数
 static void identify_disk(disk_t* hd) {
     char id_info[512];
@@ -240,7 +253,7 @@ static void identify_disk(disk_t* hd) {
 
 static void partition_scan(disk_t *hd, uint32_t ext_lba) {
     boot_sector_t* bs = kmalloc(sizeof(boot_sector_t));
-    ide_read(hd, ext_lba, bs, 1);
+    ide_read(hd, ext_lba, bs, 1, 0);
     uint8_t i = 0;
     partition_table_entry_t* p = bs->partition_table;
     while (i++ < 4) {
@@ -285,6 +298,32 @@ static void partition_info(list_node_t* elem) {
     printk("%s start_lba: %d, sec_cnt: %d\n", part->name, part->start_lba, part->sector_cnt);
 }
 
+
+//安装设备
+static void ide_device_install() {
+    //TODO
+    for (size_t i = 0;i < channel_cnt;i++) {
+        for (size_t j = 0;j < 2;j++) {
+            if (channels[i].disks[j].dev_no == -1) continue;
+            //安装硬盘
+            disk_t *hd = &channels[i].disks[j];
+            dev_t hd_dev = device_install(
+                hd->name, HARDDISK_PARENT, DEV_BLOCK, DEV_IDE_HARDDISK,
+                (void*)hd, NULL, ide_read, ide_write);
+            for (size_t k = 0;k < NR_MAIN_PART;k++) {
+                partition_t* part = &hd->parts[k];
+                device_install(part->name, hd_dev, DEV_BLOCK, DEV_IDE_PART,
+                    (void*)part, NULL, ide_part_read, ide_part_write);
+            }
+            for (size_t k = 0;k < NR_LOGIC_PART;k++) {
+                partition_t* part = &hd->logical_parts[k];
+                device_install(part->name, hd_dev, DEV_BLOCK, DEV_IDE_PART,
+                    (void*)part, NULL, ide_part_read, ide_part_write);
+            }
+        }
+    }
+}
+
 void ide_init() {
     LOGK("IDE Init...");
     list_init(&partition_list);
@@ -293,6 +332,15 @@ void ide_init() {
 
     ide_channel_t* channel;
     uint8_t channel_no = 0;
+
+    //读入信息之前先初始化硬盘为空
+    for (size_t i = 0;i < NR_CHANNEL;i++) {
+        for (size_t j = 0;j < 2;j++) {
+            channels[i].disks[j].dev_no = -1;
+        }
+    }
+
+
     for (;channel_no < channel_cnt;channel_no++) {
         channel = &channels[channel_no];
         sprintf(channel->name, "ide%d", channel_no);
@@ -310,13 +358,13 @@ void ide_init() {
         lock_init(&channel->lock);
         sema_init(&channel->disk_done, 0);
         register_handler(channel->irq_no, intr_hd_handler);
-        for (int dev_no = 0;dev_no < 2;dev_no++) {
+        for (int dev_no = 0;dev_no < 2;dev_no++) {  //遍历硬盘
             disk_t *hd = &channel->disks[dev_no];
             hd->ide = channel;
             hd->dev_no = dev_no;
             sprintf(hd->name, "hd%c", 'a' + channel_no * 2 + dev_no);
             identify_disk(hd);
-            if (dev_no != 0) {
+            if (!(channel_no == 0 && dev_no == 0)) {    //不是内核盘
                 partition_scan(hd, 0);
             }
             partition_no = 0, logical_no = 0;
@@ -327,5 +375,8 @@ void ide_init() {
     for (; node != &partition_list.tail;node = node->next) {
         partition_info(node);
     }
+
+    ide_device_install();
+
     LOGK("\npartition done");
 }

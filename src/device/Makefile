@@ -18,6 +18,7 @@ LD_FLAGS:= -m elf_i386
 
 
 OBJS:=\
+$(BUILD)/dev.o \
 $(BUILD)/keyboard.o \
 $(BUILD)/ring.o \
 

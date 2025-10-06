@@ -8,6 +8,10 @@
 
 #define SECTOR_SIZE 512         //扇区字节大小
 
+#define NR_MAIN_PART 4
+#define NR_LOGIC_PART 8
+#define NR_PART (NR_MAIN_PART + NR_LOGIC_PART)
+
 typedef struct partition_t {
     uint32_t start_lba;     //起始扇区
     uint32_t sector_cnt;       //扇区数
@@ -24,7 +28,7 @@ typedef struct partition_t {
 typedef struct disk_t {
     char name[8];   
     struct ide_channel_t* ide;     //ide通道
-    uint8_t dev_no;         //主0还是从1
+    int dev_no;         //主0还是从1    -1为不存在
     partition_t parts[4];
     partition_t logical_parts[8];
 } disk_t;
@@ -40,8 +44,8 @@ typedef struct ide_channel_t {
 } ide_channel_t;
 
 //写入硬盘sec_cnt个扇区
-void ide_write(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt);
+void ide_write(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt, int flag);
 //从硬盘读取sec_cnt个扇区
-void ide_read(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt);
+void ide_read(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt, int flag);
 
 #endif
