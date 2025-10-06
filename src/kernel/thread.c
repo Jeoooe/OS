@@ -55,7 +55,7 @@ static void idle_thread() {
     ;
     while(1) {
         asm volatile("sti\nhlt");
-        task_block(TASK_BLOCKED);
+        task_yield();
     }
 }
 
@@ -104,7 +104,6 @@ void schedule() {
 
     //没有可以调度的了
     if (!next) {
-        task_unblock(all_threads[0]);
         next = all_threads[0];
     }
 
@@ -145,8 +144,7 @@ void task_block(task_status status) {
 
 void task_unblock(task_block_t* task) {
     bool intr_state = interrupt_disable();
-    assert(task->status == TASK_BLOCKED ||
-        task->status == TASK_WAITING || task->status == TASK_HANGING);
+    assert(task->status == TASK_BLOCKED || task->status == TASK_WAITING || task->status == TASK_HANGING);
 
     task->status = TASK_READY;
 
@@ -212,6 +210,7 @@ static void task_setup() {
     task_stack_t* kstack = (task_stack_t*)task->self_kstack;
     kstack->eip = intr_exit;
     kstack->ebp = kstack->ebx = kstack->edi = kstack->esi = 0;
+    //构建中断栈, 需要定制一下, 因为貌似只有Idle进程是内核进程
     interrupt_stack_t* istack = (interrupt_stack_t*)((uint32_t)task->self_kstack + sizeof(task_stack_t));
     istack->eip = idle_thread;
     istack->ss = 0x10;

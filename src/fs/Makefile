@@ -17,6 +17,7 @@ LD_FLAGS:= -m elf_i386
 
 
 OBJS:=\
+$(BUILD)/fs/buffer.o \
 # $(BUILD)/fs/fs.o 
 
 $(BUILD)/fs/%.o: %.c

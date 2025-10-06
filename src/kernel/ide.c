@@ -82,7 +82,8 @@ void intr_hd_handler(uint8_t vector) {
 
     if (ide->expecting_intr) {
         ide->expecting_intr = false;
-        sema_up(&ide->disk_done);
+        if (ide->disk_done.value == 0)
+            sema_up(&ide->disk_done);
         inb(reg_status(ide));
     }
 }
@@ -123,7 +124,6 @@ static void select_sector(disk_t* hd, uint32_t lba, uint8_t sec_cnt) {
 }
 
 static void cmd_out(ide_channel_t* ide, uint8_t cmd) {
-    ide->expecting_intr = true;
     outb(reg_cmd(ide), cmd);
 }
 
@@ -145,7 +145,7 @@ static bool busy_wait(disk_t* hd) {
             return (status & BIT_ALT_STAT_DRQ);
         }
         else {
-            for (size_t i = 10;i > 0;i--)
+            for (size_t i = 5;i > 0;i--)
                 ;
         }
     }
@@ -153,7 +153,7 @@ static bool busy_wait(disk_t* hd) {
 }
 
 //读取sec_cnt个扇区
-void ide_read(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt, int flag) {
+void ide_read(disk_t* hd, void* buf, uint32_t sec_cnt, uint32_t lba, int flag) {
     assert(lba <= max_lba);
     assert(sec_cnt > 0);
     lock_acquire(&hd->ide->lock);
@@ -161,6 +161,7 @@ void ide_read(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt, int flag) {
     select_disk(hd);
     uint32_t secs_op;   //每次操作的扇区数
     uint32_t secs_done = 0; //完成的扇区数
+    task_block_t* cur_task = running_task();
     while (secs_done < sec_cnt) {
         if (secs_done + 256 <= sec_cnt) {
             secs_op = 256;
@@ -168,15 +169,18 @@ void ide_read(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt, int flag) {
         else {
             secs_op = sec_cnt - secs_done;
         }
+
         select_sector(hd, lba + secs_done, secs_op);
         cmd_out(hd->ide, CMD_READ_SECTOR);
 
         for (size_t i = 0;i < secs_op;i++) {
             hd->ide->expecting_intr = true;
-            if (running_task()->status == TASK_RUNNING) {
+            if (cur_task->status == TASK_RUNNING) {
                 //系统初始化时不用异步
                 //只有非初始化时候才会进入这里
-                sema_down(&hd->ide->disk_done);
+                //要是进到这里硬盘来中断了我也没招了
+                if (hd->ide->expecting_intr)
+                    sema_down(&hd->ide->disk_done);
             }
             busy_wait(hd);
             read_from_sector(hd, (void*)((uint32_t)buf + i * 512));
@@ -186,7 +190,7 @@ void ide_read(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt, int flag) {
     lock_release(&hd->ide->lock);
 }
 
-void ide_write(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt, int flag) {
+void ide_write(disk_t* hd, void* buf, uint32_t sec_cnt, uint32_t lba, int flag) {
     assert(lba <= max_lba);
     assert(sec_cnt > 0);
     lock_acquire(&hd->ide->lock);
@@ -194,6 +198,7 @@ void ide_write(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt, int flag) 
     select_disk(hd);
     uint32_t secs_op;   //每次操作的扇区数
     uint32_t secs_done = 0; //完成的扇区数
+    task_block_t* cur_task = running_task();
     while (secs_done < sec_cnt) {
         if (secs_done + 256 <= sec_cnt) {
             secs_op = 256;
@@ -214,7 +219,7 @@ void ide_write(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt, int flag) 
         for (size_t i = 0;i < secs_op;i++) {
             hd->ide->expecting_intr = true;
             write_to_sector(hd, (void*)((uint32_t)buf + i * 512));
-            if (running_task()->status == TASK_RUNNING) {
+            if (cur_task->status == TASK_RUNNING && hd->ide->expecting_intr) {
                 //系统初始化时不用异步
                 //只有非初始化时候才会进入这里
                 sema_down(&hd->ide->disk_done);
@@ -227,12 +232,12 @@ void ide_write(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt, int flag) 
     lock_release(&hd->ide->lock);
 }
 
-void ide_part_read(partition_t *part, uint32_t lba, void* buf, uint32_t sec_cnt, int flag) {
-    ide_read(part->disk, lba, buf, sec_cnt, flag);
+void ide_part_read(partition_t *part, void* buf, uint32_t sec_cnt, uint32_t lba, int flag) {
+    ide_read(part->disk, buf, sec_cnt, lba, flag);
 }
 
-void ide_part_write(partition_t *part, uint32_t lba, void* buf, uint32_t sec_cnt, int flag) {
-    ide_write(part->disk, lba, buf, sec_cnt, flag);
+void ide_part_write(partition_t *part, void* buf, uint32_t sec_cnt, uint32_t lba, int flag) {
+    ide_write(part->disk, buf, sec_cnt, lba, flag);
 }
 
 //获取硬盘参数
@@ -263,7 +268,7 @@ static void identify_disk(disk_t* hd) {
 
 static void partition_scan(disk_t *hd, uint32_t ext_lba) {
     boot_sector_t* bs = kmalloc(sizeof(boot_sector_t));
-    ide_read(hd, ext_lba, bs, 1, 0);
+    ide_read(hd, bs, 1, ext_lba, 0);
     uint8_t i = 0;
     partition_table_entry_t* p = bs->partition_table;
     while (i++ < 4) {

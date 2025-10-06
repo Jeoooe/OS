@@ -1,4 +1,5 @@
 #include <fs/fs.h>
+#include <device/dev.h>
 #include <ide.h>
 #include <debug.h>
 #include <assert.h>
@@ -11,6 +12,8 @@
 
 extern ide_channel_t channels[];
 
+dev_t root_system_dev;  //根目录所在分区的设备号
+
 partition_t* cur_part;  //目前系统根目录所在分区
 
 static void select_part(partition_t* part) {
@@ -22,7 +25,7 @@ static void select_part(partition_t* part) {
 static void filesystem_init(partition_t* part) {
     part->super_block = (super_block_t*)sys_malloc(sizeof(super_block_t));
     super_block_t* sp = part->super_block;
-    ide_read(part->disk, part->start_lba + 1, sp, 1);
+    ide_read(part->disk, sp, 1, part->start_lba + 1, 0);
 
     if (sp->magic == MAGIC) {
         //已存在超级块
@@ -46,7 +49,7 @@ static void filesystem_init(partition_t* part) {
     sp->root_inode_no = ROOT_DIR_I_NO;
     sp->dir_entry_size = sizeof(dir_entry_t);
     //写入超级块
-    ide_write(part->disk, part->start_lba + 1, sp, 1);
+    ide_write(part->disk, sp, 1, part->start_lba + 1, 0);
 
 
     //处理各种位图
@@ -69,12 +72,12 @@ static void filesystem_init(partition_t* part) {
         buf[i] = 0xff;
     }
     buf[0] = 1; //根目录占用第一个数据块
-    ide_write(part->disk, sp->block_bitmap_lba, buf, sp->block_bitmap_sects);
+    ide_write(part->disk, buf, sp->block_bitmap_sects, sp->block_bitmap_lba, 0);
 
     //inode位图
     memset(buf, 0, sp->inode_bitmap_sects * SECTOR_SIZE);
     buf[0] = 0b11;  //0是保留不用, 1是根目录
-    ide_write(part->disk, sp->inode_bitmap_lba, buf, sp->inode_bitmap_sects);
+    ide_write(part->disk, buf, sp->inode_bitmap_sects,  sp->inode_bitmap_lba, 0);
 
     //inode数组
     memset(buf, 0, sp->inode_table_sects * SECTOR_SIZE);
@@ -83,7 +86,7 @@ static void filesystem_init(partition_t* part) {
     inode->i_size = 2 * sizeof(dir_entry_t);
     inode->i_type = FT_DIRECTORY;
     inode->i_zone[0] = sp->data_start_lba;
-    ide_write(part->disk, sp->inode_table_lba, buf, sp->inode_table_sects);
+    ide_write(part->disk, buf, sp->inode_table_sects, sp->inode_table_lba, 0);
 
     //写入两个目录项 . 和 ..
     memset(buf, 0, sp->dir_entry_size * 2);
@@ -95,15 +98,15 @@ static void filesystem_init(partition_t* part) {
     entry++;
     entry->filename[0] = entry->filename[1] = '.';  
     entry->i_no = ROOT_DIR_I_NO;
-    ide_write(part->disk, sp->data_start_lba, buf, 1);
+    ide_write(part->disk, buf, 1, sp->data_start_lba, 0);
 
     sys_free(buf);
 }
 
 
 void fs_init() {
-    /* 一开始先选择hdb1来创建文件系统
-    */
+    //寻找第一个分区设备作为文件系统
+    root_system_dev = device_find(DEV_IDE_PART, 1);
     select_part(&channels[0].disks[1].parts[0]);
     filesystem_init(cur_part);
 }

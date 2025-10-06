@@ -13,10 +13,21 @@ extern void task_init();
 extern void keyboard_init();
 extern void syscall_init();
 extern void ide_init();
-extern void filesys_init();
 extern void device_init();
+extern void buffer_init();
+extern void filesys_init();
+
+
 
 static void init();
+
+//随便放点测试
+#include <device/dev.h>
+#include <fs/buffer.h>
+static void test() {
+    device_t* device = device_find(DEV_IDE_PART, 0);
+    buffer_t* buf = bread(device->dev, 0);
+}
 
 void kernel_main() {
     LOGK("Kernel Init... %d", MAGIC);
@@ -27,8 +38,9 @@ void kernel_main() {
 
     //设备有关
     device_init();
+    buffer_init();
     ide_init();
-    keyboard_init();
+    // keyboard_init();
 
     //线程初始化
     task_init();
@@ -38,6 +50,10 @@ void kernel_main() {
     interrupt_mask(INTERRUPT_HARDDISK_MASTER, true);
     interrupt_mask(INTERRUPT_HARDDISK_SLAVE, true);
     set_interrupt_state(true);
+
+    test();
+    while (1);
+
     //进入用户模式
     asm(
         // "subl $0x300, %%esp\n"

@@ -44,8 +44,8 @@ typedef struct ide_channel_t {
 } ide_channel_t;
 
 //写入硬盘sec_cnt个扇区
-void ide_write(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt, int flag);
+void ide_write(disk_t* hd, void* buf, uint32_t sec_cnt, uint32_t lba, int flag);
 //从硬盘读取sec_cnt个扇区
-void ide_read(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt, int flag);
+void ide_read(disk_t* hd, void* buf, uint32_t sec_cnt, uint32_t lba, int flag);
 
 #endif

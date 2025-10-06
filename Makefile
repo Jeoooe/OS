@@ -16,7 +16,7 @@ SYSTEM:=$(BUILD)/system.bin
 
 ALL_TARGETS:= $(BUILD)/kernel/kernel.o $(BUILD)/lib/lib.o
 ALL_TARGETS+= $(BUILD)/device/device.o $(BUILD)/userprog/userprog.o
-# ALL_TARGETS+= $(BUILD)/fs/filesys.o
+ALL_TARGETS+= $(BUILD)/fs/filesys.o
 
 
 all: $(BUILD)/master.img

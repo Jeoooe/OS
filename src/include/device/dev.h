@@ -21,6 +21,11 @@ enum sub_device_type {
     DEV_IDE_PART,           //硬盘分区
 };
 
+enum blk_device_direct {
+    DIRECT_UP,
+    DIRECT_DOWN
+};
+
 //请求项类型
 #define REQ_READ 0
 #define REQ_WRITE 1
@@ -33,7 +38,7 @@ typedef struct device_t {
     int sub_type;       //子设备类型
     void *ptr;          //设备指针
     list_t request_list;    //请求列表
-    struct request_t *current_req;
+    int direct;         //寻道方向
 
     //设备对应的操作函数
 
@@ -45,10 +50,10 @@ typedef struct device_t {
 
 typedef struct request_t {
     int dev;
-    int cmd;
+    int type;
     uint32_t index;
     uint32_t count;
-    int flags;
+    int flag;
     char* buf;                  //数据缓冲区
     task_block_t *task;         //请求的任务
     list_node_t req_node;       //请求节点
@@ -69,6 +74,7 @@ int device_read(dev_t dev, void *buf, size_t count, uint32_t index, int flag);
 
 int device_write(dev_t dev, void *buf, size_t count, uint32_t index, int flag);
 
+//块设备请求, 失败返回-1
 int blk_device_request(dev_t dev, void *buf, size_t count, uint32_t index, int flag, uint32_t type);
 
 #endif
