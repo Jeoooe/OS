@@ -45,6 +45,8 @@
 #define NR_CHANNEL 2
 #define NR_HARDDISK 2 * NR_CHANNEL
 
+#define flush_tlb(vaddr) asm volatile("invlpg (%0)"::"r"(vaddr):"memory")
+
 uint8_t channel_cnt;
 ide_channel_t channels[NR_CHANNEL];
 
@@ -135,16 +137,16 @@ static void write_to_sector(disk_t* hd, void* buf) {
 
 static bool busy_wait(disk_t* hd) {
     ide_channel_t* ide = hd->ide;
-    uint16_t time_limit = 30 * 1000;
     uint8_t status;
-    while (time_limit -= 10 >= 0) {
+    while (1) {
         status = inb(reg_status(ide));
         if (!(status & BIT_ALT_STAT_BSY)) {
             //不是忙
             return (status & BIT_ALT_STAT_DRQ);
         }
         else {
-            mtime_sleep(10);
+            for (size_t i = 10;i > 0;i--)
+                ;
         }
     }
     return false;
@@ -171,7 +173,11 @@ void ide_read(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt, int flag) {
 
         for (size_t i = 0;i < secs_op;i++) {
             hd->ide->expecting_intr = true;
-            sema_down(&hd->ide->disk_done);
+            if (running_task()->status == TASK_RUNNING) {
+                //系统初始化时不用异步
+                //只有非初始化时候才会进入这里
+                sema_down(&hd->ide->disk_done);
+            }
             busy_wait(hd);
             read_from_sector(hd, (void*)((uint32_t)buf + i * 512));
         }
@@ -208,7 +214,11 @@ void ide_write(disk_t* hd, uint32_t lba, void* buf, uint32_t sec_cnt, int flag) 
         for (size_t i = 0;i < secs_op;i++) {
             hd->ide->expecting_intr = true;
             write_to_sector(hd, (void*)((uint32_t)buf + i * 512));
-            sema_down(&hd->ide->disk_done);
+            if (running_task()->status == TASK_RUNNING) {
+                //系统初始化时不用异步
+                //只有非初始化时候才会进入这里
+                sema_down(&hd->ide->disk_done);
+            }
             busy_wait(hd);
         }
         
@@ -230,7 +240,7 @@ static void identify_disk(disk_t* hd) {
     char id_info[512];
     select_disk(hd);
     cmd_out(hd->ide, CMD_IDENTIFY);
-    sema_down(&hd->ide->disk_done);
+    // sema_down(&hd->ide->disk_done);
 
     if (!busy_wait(hd)) {       //失败，不可读
         char error[64];
@@ -304,6 +314,7 @@ static void ide_device_install() {
     //TODO
     for (size_t i = 0;i < channel_cnt;i++) {
         for (size_t j = 0;j < 2;j++) {
+            //硬盘不存在
             if (channels[i].disks[j].dev_no == -1) continue;
             //安装硬盘
             disk_t *hd = &channels[i].disks[j];
@@ -312,11 +323,13 @@ static void ide_device_install() {
                 (void*)hd, NULL, ide_read, ide_write);
             for (size_t k = 0;k < NR_MAIN_PART;k++) {
                 partition_t* part = &hd->parts[k];
+                if (!part->disk) continue;
                 device_install(part->name, hd_dev, DEV_BLOCK, DEV_IDE_PART,
                     (void*)part, NULL, ide_part_read, ide_part_write);
             }
             for (size_t k = 0;k < NR_LOGIC_PART;k++) {
                 partition_t* part = &hd->logical_parts[k];
+                if (!part->disk) continue;
                 device_install(part->name, hd_dev, DEV_BLOCK, DEV_IDE_PART,
                     (void*)part, NULL, ide_part_read, ide_part_write);
             }
@@ -327,6 +340,12 @@ static void ide_device_install() {
 void ide_init() {
     LOGK("IDE Init...");
     list_init(&partition_list);
+
+    //需要读取系统引导块的内容
+    uint32_t* boot_sector_pte = (uint32_t*)0xFFC00000;
+    *boot_sector_pte = 7;
+    flush_tlb(0);
+
     const uint8_t hd_cnt = *((uint8_t*)0x475);
     channel_cnt = DIV_ROUND_UP(hd_cnt, 2);
 
@@ -377,6 +396,9 @@ void ide_init() {
     }
 
     ide_device_install();
+
+    *boot_sector_pte = 0;
+    flush_tlb(0);
 
     LOGK("\npartition done");
 }

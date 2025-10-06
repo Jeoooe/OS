@@ -23,13 +23,20 @@ void kernel_main() {
 
     interrupt_init();
     timer_init();
-    task_init();
     syscall_init();
 
     //设备有关
     device_init();
+    ide_init();
+    keyboard_init();
+
+    //线程初始化
+    task_init();
 
     interrupt_mask(INTERRUPT_TIMER, true);
+    interrupt_mask(INTERRUPT_SLAVE, true);
+    interrupt_mask(INTERRUPT_HARDDISK_MASTER, true);
+    interrupt_mask(INTERRUPT_HARDDISK_SLAVE, true);
     set_interrupt_state(true);
     //进入用户模式
     asm(
@@ -58,13 +65,11 @@ void kernel_main() {
     
 
     
-    interrupt_mask(INTERRUPT_SLAVE, true);
-    interrupt_mask(INTERRUPT_HARDDISK_MASTER, true);
-    interrupt_mask(INTERRUPT_HARDDISK_SLAVE, true);
+
 
    
-    ide_init();
-    keyboard_init();
+    
+    
 }
 
 void init() {

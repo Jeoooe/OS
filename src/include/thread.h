@@ -17,7 +17,7 @@
 typedef void (*thread_func)(void);
 
 typedef enum task_status {
-    TASK_RUNNING,
+    TASK_RUNNING = 0x10,
     TASK_READY,
     TASK_BLOCKED,
     TASK_WAITING,

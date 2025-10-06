@@ -1,4 +1,4 @@
-#include <dev.h>
+#include <device/dev.h>
 #include <assert.h>
 #include <debug.h>
 #include <string.h>
@@ -89,4 +89,5 @@ void device_init() {
     }
     //几个空的父设备
     memcpy(devices[HARDDISK_PARENT].name, "Hard Disk CTL", 14);
+    devices[HARDDISK_PARENT].type = DEV_BLOCK;
 }
