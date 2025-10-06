@@ -16,18 +16,10 @@ SYSTEM:=$(BUILD)/system.bin
 
 ALL_TARGETS:= $(BUILD)/kernel/kernel.o $(BUILD)/lib/lib.o
 ALL_TARGETS+= $(BUILD)/device/device.o $(BUILD)/userprog/userprog.o
-# ALL_TARGETS+= $(BUILD)/fs/filesys.o
+ALL_TARGETS+= $(BUILD)/fs/filesys.o
 
 
 all: $(BUILD)/master.img
-
-.PHONY: update
-update: 
-	(cd src/kernel; make)
-	(cd src/userprog; make)
-# 	(cd src/fs; make)
-	(cd src/lib; make)
-	(cd src/device; make)
 
 $(BUILD)/boot/%.bin: $(SRC_DIR)/boot/%.asm
 	nasm -f bin -o $@ $<
@@ -63,6 +55,14 @@ $(BUILD)/master.img: $(BUILD)/boot/mbr.bin $(BUILD)/boot/loader.bin \
 	dd if=$(BUILD)/boot/mbr.bin of=$@ bs=512 count=1 conv=notrunc
 	dd if=$(BUILD)/boot/loader.bin of=$@ bs=512 count=2 seek=2 conv=notrunc
 	dd if=$(SYSTEM) of=$@ bs=512 count=200 seek=10 conv=notrunc
+
+.PHONY: update
+update:
+	(cd src/kernel; make)
+	(cd src/lib; make)
+	(cd src/device; make)
+	(cd src/userprog; make)
+	(cd src/fs; make)
 
 
 #虚拟机启动设置
@@ -101,6 +101,14 @@ clear:
 	mkdir -p $(BUILD)/device
 	mkdir -p $(BUILD)/userprog
 	mkdir -p $(BUILD)/fs
+
+
+dep:
+	(cd src/kernel; make dep)
+	(cd src/userprog; make dep)
+	(cd src/fs; make dep)
+	(cd src/lib; make dep)
+	(cd src/device; make dep)
 
 
 dep:

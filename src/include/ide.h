@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <mutex.h>
 #include <thread.h>
-#include <fs/super_block.h>
+#include <fs/fs.h>
 
 #define SECTOR_SIZE 512         //扇区字节大小
 
@@ -19,7 +19,7 @@ typedef struct partition_t {
     list_node_t part_node;
     char name[8];
     //文件系统
-    super_block_t* super_block;
+    struct super_block_t* super_block;
     bitmap_t block_bitmap;
     bitmap_t inode_bitmap;
     list_t open_inodes;
