@@ -36,15 +36,33 @@ static super_block_t* get_free_super() {
 static super_block_t* get_super(dev_t dev) {
     super_block_t* sb;
     for (sb = super_blocks;sb != &super_blocks[NR_SUPER]; sb++) {
-        if (sb->dev != dev) continue;
-        return sb;
+        if (sb->dev == dev) 
+            return sb;
     }
     return NULL;
 }
 
 //释放设备上的超级块
 static void put_super(dev_t dev) {
-
+    super_block_t* sb = get_super(dev);
+    if (!sb) {
+        panic("Cannot put a null dev");
+    }  
+    lock_acquire(&sb->lock);
+    for (size_t i = 0;i < INODE_MAP_SIZE;i++) {
+        if (sb->inode_map[i]) brelse(sb->inode_map[i]);
+    }
+    for (size_t i = 0;i < ZONE_MAP_SIZE;i++) {
+        if (sb->zone_map[i]) brelse(sb->zone_map[i]);
+    }
+    //超级块写回磁盘
+    buffer_t *buf = bread(dev, 1);
+    d_super_block_t* dsb = (d_super_block_t*)buf->data;
+    memcpy(dsb, sb, sizeof(d_super_block_t));
+    buf->dirty = true;
+    sb->dev = 0;
+    brelse(buf);
+    lock_release(&sb->lock);
 }
 
 //创建一个硬盘超级块

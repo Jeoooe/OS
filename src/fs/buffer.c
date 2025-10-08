@@ -133,6 +133,9 @@ int bwrite(buffer_t* buf) {
 }
 
 int brelse(buffer_t* buf) {
+    if (!buf) {
+        return -1;
+    }
     buf->count--;
     assert(buf->count >= 0);
     if (buf->count > 0) {
