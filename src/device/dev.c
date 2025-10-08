@@ -169,7 +169,4 @@ void device_init() {
         devices[i].ptr = NULL;
         list_init(&devices[i].request_list);
     }
-    //几个空的父设备
-    memcpy(devices[HARDDISK_PARENT].name, "Hard Disk CTL", 14);
-    devices[HARDDISK_PARENT].type = DEV_BLOCK;
 }

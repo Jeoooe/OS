@@ -75,6 +75,7 @@ int device_read(dev_t dev, void *buf, size_t count, uint32_t index, int flag);
 int device_write(dev_t dev, void *buf, size_t count, uint32_t index, int flag);
 
 //块设备请求, 失败返回-1
+//`index`是相对于起始扇区的索引
 int blk_device_request(dev_t dev, void *buf, size_t count, uint32_t index, int flag, uint32_t type);
 
 #endif

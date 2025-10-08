@@ -12,7 +12,7 @@
 
 extern ide_channel_t channels[];
 
-dev_t root_system_dev;  //根目录所在分区的设备号
+device_t* root_system_dev;  //根目录所在分区的设备号
 
 partition_t* cur_part;  //目前系统根目录所在分区
 
@@ -106,7 +106,7 @@ static void filesystem_init(partition_t* part) {
 
 void fs_init() {
     //寻找第一个分区设备作为文件系统
-    root_system_dev = device_find(DEV_IDE_PART, 1);
+    root_system_dev = device_find(DEV_IDE_PART, 0);
     select_part(&channels[0].disks[1].parts[0]);
     filesystem_init(cur_part);
 }

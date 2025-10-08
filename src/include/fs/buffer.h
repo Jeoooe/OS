@@ -20,6 +20,11 @@ typedef struct buffer_t {
     list_node_t hash_node;  //哈希列表的节点
 } buffer_t;
 
+
+buffer_t* get_blk(dev_t dev, uint32_t block);
+
+//读取块设备并读入缓冲
+//读取失败返回`NULL`
 buffer_t *bread(dev_t dev, uint32_t block);
 
 int bwrite(buffer_t* buf);

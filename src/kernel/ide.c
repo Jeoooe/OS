@@ -233,11 +233,11 @@ void ide_write(disk_t* hd, void* buf, uint32_t sec_cnt, uint32_t lba, int flag) 
 }
 
 void ide_part_read(partition_t *part, void* buf, uint32_t sec_cnt, uint32_t lba, int flag) {
-    ide_read(part->disk, buf, sec_cnt, lba, flag);
+    ide_read(part->disk, buf, sec_cnt, lba + part->start_lba, flag);
 }
 
 void ide_part_write(partition_t *part, void* buf, uint32_t sec_cnt, uint32_t lba, int flag) {
-    ide_write(part->disk, buf, sec_cnt, lba, flag);
+    ide_write(part->disk, buf, sec_cnt, lba + part->start_lba, flag);
 }
 
 //获取硬盘参数
@@ -324,7 +324,7 @@ static void ide_device_install() {
             //安装硬盘
             disk_t *hd = &channels[i].disks[j];
             dev_t hd_dev = device_install(
-                hd->name, HARDDISK_PARENT, DEV_BLOCK, DEV_IDE_HARDDISK,
+                hd->name, 0, DEV_BLOCK, DEV_IDE_HARDDISK,
                 (void*)hd, NULL, ide_read, ide_write);
             for (size_t k = 0;k < NR_MAIN_PART;k++) {
                 partition_t* part = &hd->parts[k];

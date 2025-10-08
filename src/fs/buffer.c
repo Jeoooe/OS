@@ -30,9 +30,9 @@ static buffer_t* get_from_hashtable(dev_t dev, uint32_t block) {
 }
 
 //把缓冲块放入哈希表
-static void put_hashtable(buffer_t* buf) {
+static void push_hashtable(buffer_t* buf) {
     int index = HASH(buf->dev, buf->block);
-    list_pushback(&hash_table[index], &buf->free_node);
+    list_pushback(&hash_table[index], &buf->hash_node);
 }
 
 //缓冲块移出哈希表
@@ -58,7 +58,7 @@ static buffer_t* get_free_buffer(dev_t dev, uint32_t block) {
             //移出空闲列表
             list_remove(&buf->free_node);
             //放入哈希表中
-            put_hashtable(buf);
+            push_hashtable(buf);
             return buf;
         }
         //没有空闲
@@ -68,7 +68,7 @@ static buffer_t* get_free_buffer(dev_t dev, uint32_t block) {
     }
 }
 
-static buffer_t* get_blk(dev_t dev, uint32_t block) {
+buffer_t* get_blk(dev_t dev, uint32_t block) {
     buffer_t* buf = get_from_hashtable(dev, block);
     if (buf) {
         buf->count++;
