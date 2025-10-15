@@ -11,15 +11,12 @@
 //获取Inode数组起始块
 #define INODE_START(sb) (2 + sb->zone_bitmap_blocks + sb->inode_bitmap_blocks)
 
-#define LOG2_BLOCK_SECTOR 1
-#define BLOCK_SIZE SECTOR_SIZE * (1 << LOG2_BLOCK_SECTOR)
 #define NR_SUPER 8
-#define ROOT_SUPER 0    //根目录超级块
 
 //inode结构 
-#define INODE_STRUCT_SIZE 32    //d_inode_t大小
 #define INODE_PER_BLOCK BLOCK_SIZE / INODE_STRUCT_SIZE
 
+extern void set_root_inode(inode_t* root);  //from inode.c
 
 super_block_t super_blocks[NR_SUPER];
 
@@ -33,7 +30,7 @@ static super_block_t* get_free_super() {
 }
 
 //从超级块数组中获取已存在的超级快
-static super_block_t* get_super(dev_t dev) {
+super_block_t* get_super(dev_t dev) {
     super_block_t* sb;
     for (sb = super_blocks;sb != &super_blocks[NR_SUPER]; sb++) {
         if (sb->dev == dev) 
@@ -43,7 +40,7 @@ static super_block_t* get_super(dev_t dev) {
 }
 
 //释放设备上的超级块
-static void put_super(dev_t dev) {
+void put_super(dev_t dev) {
     super_block_t* sb = get_super(dev);
     if (!sb) {
         panic("Cannot put a null dev");
@@ -66,7 +63,6 @@ static void put_super(dev_t dev) {
 }
 
 //创建一个硬盘超级块
-//同时会建立根目录
 static void create_super(d_super_block_t* sb, dev_t dev) {
     const uint32_t sector_cnt = ((partition_t*)device_get(dev)->ptr)->sector_cnt; 
     sb->log_zone_size = LOG2_BLOCK_SECTOR;
@@ -83,28 +79,13 @@ static void create_super(d_super_block_t* sb, dev_t dev) {
     }
 
     free_blocks -= inode_blocks;
+    free_blocks = MIN(free_blocks, MAX_ZONE_COUNT); //有硬盘大小限制
     sb->zones = free_blocks;
     sb->first_zone = 2 + sb->zone_bitmap_blocks + sb->inode_bitmap_blocks + inode_blocks;
     sb->inodes_count = 1;
     sb->max_size = 0;
     
     sb->magic = MAGIC;
-
-    // /* 写入根目录 */
-    // buffer_t *buf = bread(dev, 2);  //Inode位图
-    // buf->data[1] = 0b11;
-    // brelse(buf);    
-    // buf = bread(dev, 2 + INODE_MAP_SIZE);
-    // buf->data[1] = 0b11;
-    // brelse(buf);
-    // buf = bread(dev, INODE_START(sb));
-    // d_inode_t* inode = buf->data;
-    // inode++;
-    // inode->zones[0] = 1;    //1号逻辑块
-    // brelse(buf);
-    // //根目录 目录项
-    // //TODO
-    /* 读入两个位图 */
 }
 
 //读取`dev`设备的超级块, 如果不存在则自动创建文件系统的超级块
@@ -134,7 +115,7 @@ static super_block_t* read_super(dev_t dev) {
     }
 
     d_super_block_t* d_sb = (d_super_block_t*)buf->data;
-    bool create = false;
+
 
     sb->dev = dev;
     //调试时候, 直接创建
@@ -143,11 +124,10 @@ static super_block_t* read_super(dev_t dev) {
     }
 
     //该设备不存在超级块
-    create_super(d_sb, dev);
     buf->dirty = true;
-    create = true;
+    create_super(d_sb, dev);
     
-    //读入内存
+    //把超级块读入内存
 load_to_memory:
     memcpy(sb, d_sb, sizeof(d_super_block_t));
     //这里没读出来直接死机 调试期间先这样吧
@@ -161,29 +141,6 @@ load_to_memory:
         assert(sb->zone_map[i]);
     }
 
-    //看是否需要创建根文件
-    if (create) {
-        sb->inode_map[0]->data[0] = 0b11;
-        sb->zone_map[0]->data[0] = 0b11;    //第0块和第0个inode不要
-        //读取inode数组
-        buffer_t *tmp = bread(dev, offset);
-        d_inode_t* di = (d_inode_t*)tmp->data;
-        memset(di, 0, sizeof(d_inode_t));
-        di->zones[0] = 1;
-        tmp->dirty = true;
-        brelse(tmp);
-        //写入目录项
-        tmp = bread(dev, sb->first_zone);
-        dir_entry_t* de = (dir_entry_t*)tmp->data;
-        de->filename[0] = '.';
-        de->i_no = ROOT_INODE;
-        de++;
-        de->filename[0] = de->filename[1] = '.';
-        de->i_no = ROOT_INODE;
-        tmp->dirty = true;
-        brelse(tmp);
-    }
-
 roll_back1:
     brelse(buf);
 roll_back2:
@@ -191,10 +148,30 @@ roll_back2:
     return sb;
 }
 
-
-//把设备挂载到inode上
-static void mount_super() {
-
+//挂载根节点
+static inode_t *mount_root_inode(dev_t dev) {
+    inode_t* root_inode = iget(dev, ROOT_INODE);
+    if (root_inode->nlinks == 0) { 
+        //根目录不存在
+        iput(root_inode);
+        root_inode = new_inode(dev);    //创建一个
+        //创建一个逻辑块给他
+        root_inode->zones[0] = new_block(dev);
+        //然后写入两个目录项
+        //到底为什么要用这么粗暴的方式来写根目录的两个目录项
+        //但是我实在抄不到Linus的代码了
+        buffer_t* bh = bread(dev, root_inode->zones[0]);    
+        dir_entry_t *dentry = (dir_entry_t*)bh->data;
+        dentry->i_no = ROOT_INODE;
+        memcpy(dentry->filename, ".", 1);
+        dentry++;
+        dentry->i_no = ROOT_INODE;
+        memcpy(dentry->filename, "..", 2);
+        bh->dirty = 1;
+        brelse(bh);
+    }
+    set_root_inode(root_inode);
+    return root_inode;
 }
 
 //挂载根目录
@@ -216,9 +193,18 @@ int mount_root(dev_t dev) {
     if (!sb) {
         panic("Unable to mount root");
     }
+    //读取根节点
+    inode_t *root_inode = mount_root_inode(dev);
+    if (!root_inode) {
+        panic("Unable to mount root inode");
+    }
+
     return ROOT_INODE;
 }
 
+extern void fs_inode_init();
 void root_setup() {
+    //需要初始化inode_table
+    fs_inode_init();
     mount_root(device_find(DEV_IDE_PART, 0)->dev);
 }

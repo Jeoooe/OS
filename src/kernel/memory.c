@@ -381,7 +381,11 @@ void page_fault(uint8_t vector,
 ) {
     uint32_t vaddr = get_cr2();
     task_block_t* task = running_task();
-    assert(vaddr > 0x1000); //不在开头一页
+    // assert(vaddr > 0x1000); //不在开头一页
+    if (vaddr <= 0x1000) {
+        printk("Try to access 0x%x\n", vaddr);
+        panic("");
+    }
 
     //特殊情况
     if (vaddr < USER_EXEC_START) {

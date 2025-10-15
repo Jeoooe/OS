@@ -19,7 +19,8 @@ LD_FLAGS:= -m elf_i386
 OBJS:=\
 $(BUILD)/fs/buffer.o \
 $(BUILD)/fs/super.o \
-# $(BUILD)/fs/fs.o 
+$(BUILD)/fs/inode.o \
+$(BUILD)/fs/bitmap.o 
 
 $(BUILD)/fs/%.o: %.c
 	$(CC) $(CFLAGS) $(CDEBUG) -c -o $@ $<

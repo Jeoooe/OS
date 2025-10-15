@@ -37,7 +37,8 @@
 })
 
 enum SYSCALL_NR {
-    SYS_GETPID = 0,
+    SYS_SETUP = 0,
+    SYS_GETPID,
     SYS_GETPPID,
     SYS_WRITE,
     SYS_FORK = 57,
@@ -74,5 +75,8 @@ void exit(int error_code);
 /// @param options 可选项 暂时没有实现
 /// @return 等待进程的pid
 pid_t waitpid(pid_t pid, int *status, int options);
+
+/// @brief 系统初始化, 只可调用一次
+void setup();
 
 #endif

@@ -4,14 +4,20 @@
 #include <fs/buffer.h>
 #include <mutex.h>
 
-#define MAX_INODE_COUNT 4096
+#define INODE_STRUCT_SIZE 32    //d_inode_t大小
+//下面两个不要动了
+#define LOG2_BLOCK_SECTOR 1     
+#define BLOCK_SIZE 1024         //逻辑块大小
+
+#define MAX_INODE_COUNT 8192    //文件系统中最大node数 好像也没用
 #define MAX_FILE_NAME_LEN 30
 
 #define INODE_MAP_SIZE 1
-#define ZONE_MAP_SIZE 8
+#define ZONE_MAP_SIZE 8     //逻辑块位图占据逻辑块数, 硬盘大小上限
 #define MAX_ZONE_COUNT (BLOCK_SIZE * ZONE_MAP_SIZE * 8)
 
 #define ROOT_INODE 1
+#define ROOT_SUPER 0    //根目录超级块在超级块数组中的位置
 
 enum file_type {
     FT_UNKNOWN,
@@ -47,7 +53,7 @@ typedef struct d_super_block_t {
     uint16_t first_zone;                    //第一个数据块
     uint16_t log_zone_size;                 //log2(逻辑块大小/扇区大小)
     uint16_t max_size;                      //最大文件大小
-    uint32_t magic;                     
+    uint32_t magic;                         //丰神
 } d_super_block_t;
 
 //内存中字段
@@ -60,7 +66,12 @@ typedef struct inode_t {
     uint8_t nlinks;     
     uint16_t zones[9];
     //以下是内存中独有的
+    int i_num;      //inode数组下标
     dev_t dev;      //所属设备
+    lock_t lock;
+    uint16_t count; //引用数
+    int dirty;      //是否已修改
+    int i_pipe;     //是否是管道
 } inode_t;
 
 //硬盘中的inode结构 应该是32字节
@@ -80,5 +91,16 @@ typedef struct dir_entry_t {
     uint16_t i_no;  //指向的文件的inode
     char filename[MAX_FILE_NAME_LEN];
 } dir_entry_t;
+
+super_block_t* get_super(dev_t dev);
+
+inode_t* iget(dev_t dev, int nr);
+void iput(inode_t* inode);
+
+/* from bitmap.c */
+//申请新inode
+inode_t* new_inode(dev_t dev);
+//申请新逻辑块, 返回逻辑块号
+int new_block(dev_t dev);
 
 #endif

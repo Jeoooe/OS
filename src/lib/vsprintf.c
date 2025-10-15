@@ -122,7 +122,7 @@ static char *number(char *str, unsigned long num, int base, int size, int precis
 
 int vsprintf(char *buf, const char *fmt, va_list args) {
     int flags, field_width, precision, len, i;
-    char qualifier = 0;
+    // char qualifier = 0;
     char *str = NULL;
     char *s = NULL;
     int *ip;
@@ -184,9 +184,9 @@ int vsprintf(char *buf, const char *fmt, va_list args) {
             if (precision < 0) precision = -precision;
         }
 
-        qualifier = -1;
+        // qualifier = -1;
         if (*fmt == 'h' || *fmt == 'l' || *fmt == 'L') {
-            qualifier = *fmt;
+            // qualifier = *fmt;
             ++fmt;
         }
 

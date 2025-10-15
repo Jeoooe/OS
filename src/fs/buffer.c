@@ -1,3 +1,7 @@
+/*
+    bwrite和brelse函数的资源竞争部分是有隐患的, 如果出现问题可能需要修复
+    BUG
+*/
 #include <fs/buffer.h>
 #include <device/dev.h>
 #include <ide.h>
@@ -13,6 +17,10 @@
 #define RW_SECTOR_COUNT BUFFER_SIZE / SECTOR_SIZE   //缓冲块读写的扇区数
 
 #define HASH(dev, block) ((dev ^ block) % HASH_COUNT)
+
+extern void sync_inode();
+
+static buffer_t* start_buffer;  //buffer结构起始地址, 以数组形式存储buffer
 
 static list_t wait_list;    //等待缓冲块的任务列表
 static list_t free_list;    //空闲块列表
@@ -80,22 +88,28 @@ buffer_t* get_blk(dev_t dev, uint32_t block) {
 }
 
 buffer_t *bread(dev_t dev, uint32_t block) {
-    buffer_t* buf = get_blk(dev, block);
-    if (!buf) { //没有缓存块了
-        return NULL;
-    }
+    buffer_t *buf;
+    while (1) {
+        buf = get_blk(dev, block);
+        if (!buf) { //没有缓存块了
+            return NULL;
+        }
+        
+        lock_acquire(&buf->lock);   //锁住缓存
 
-    //如果有效就不必申请锁
-    if (buf->valid) {
-        return buf;
-    }
+        if (buf->dev != dev || buf->block != block) {
+            lock_release(&buf->lock);
+            brelse(buf);
+            continue;
+        }
 
-    lock_acquire(&buf->lock);   //锁住缓存
-    
-    //这里要再判断一次, 防止出现第一个进程没读完, 第二个进程就申请了锁
-    if (buf->valid) {
-        lock_release(&buf->lock);
-        return buf;
+        //块已经在内存中
+
+        if (buf->valid) {
+            lock_release(&buf->lock);
+            return buf;
+        }
+        else break;
     }
     
     int err = blk_device_request(dev, buf->data, RW_SECTOR_COUNT, block, 0, REQ_READ);
@@ -121,7 +135,10 @@ int bwrite(buffer_t* buf) {
     buf->valid = false;
     lock_acquire(&buf->lock);
     
-    int err = blk_device_request(buf->dev, buf->data, RW_SECTOR_COUNT, buf->block, 0, REQ_WRITE);
+    //这里真是逆天bug
+    //由于逻辑块和扇区大小不一致, 起始index也要乘上这个倍数
+    uint32_t block = buf->block * RW_SECTOR_COUNT;
+    int err = blk_device_request(buf->dev, buf->data, RW_SECTOR_COUNT, block, 0, REQ_WRITE);
 
     if (err != -1) {
         buf->dirty = false;
@@ -157,6 +174,29 @@ int brelse(buffer_t* buf) {
     return 0;
 }
 
+int sync_dev(dev_t dev) {
+    buffer_t* bh = start_buffer;
+    for (size_t i = 0;i < MAX_BUFFER_COUNT;i++, bh++) {
+        if (bh->dev != dev) continue;
+        lock_acquire(&bh->lock);
+        if (bh->dev == dev && bh->dirty) {
+            lock_release(&bh->lock);
+            bwrite(bh);
+        }
+    }
+    sync_inode();
+    bh = start_buffer;
+    for (size_t i = 0;i < MAX_BUFFER_COUNT;i++, bh++) {
+        if (bh->dev != dev) continue;
+        lock_acquire(&bh->lock);
+        if (bh->dev == dev && bh->dirty) {
+            lock_release(&bh->lock);
+            bwrite(bh);
+        }
+    }
+    return 0;
+}
+
 void buffer_init() {
     list_init(&wait_list);
     list_init(&free_list);
@@ -165,13 +205,15 @@ void buffer_init() {
     }
     
     /* 初始化缓冲块 */
+    start_buffer = (buffer_t*)kmalloc(sizeof(buffer_t) * MAX_BUFFER_COUNT);
+    buffer_t* buf = start_buffer;
     void *addr = get_kpages(BUFFER_PAGES);     //缓冲区起始位置
     for (size_t i = 0;i < MAX_BUFFER_COUNT; i++, addr += BUFFER_SIZE) {
-        buffer_t* buf = (buffer_t*)kmalloc(sizeof(buffer_t));
         buf->block = buf->count = buf->dev = 0;
         buf->dirty = buf->valid = 0;
         buf->data = addr;
         lock_init(&buf->lock);
         list_push(&free_list, &buf->free_node);
+        buf++;
     }
 }

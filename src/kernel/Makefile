@@ -37,6 +37,7 @@ $(BUILD)/syscall.o \
 $(BUILD)/sysc.o \
 $(BUILD)/exit.o \
 $(BUILD)/ide.o \
+$(BUILD)/setup.o \
 
 $(BUILD)/%.o: %.c
 	$(CC) $(CFLAGS) $(CDEBUG) -c -o $@ $<

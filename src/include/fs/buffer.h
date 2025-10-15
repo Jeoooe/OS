@@ -31,5 +31,8 @@ int bwrite(buffer_t* buf);
 
 int brelse(buffer_t* buf);
 
+//同步设备上的所有缓冲块
+int sync_dev(dev_t dev);
+
 
 #endif

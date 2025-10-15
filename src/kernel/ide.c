@@ -183,7 +183,7 @@ void ide_read(disk_t* hd, void* buf, uint32_t sec_cnt, uint32_t lba, int flag) {
                     sema_down(&hd->ide->disk_done);
             }
             busy_wait(hd);
-            read_from_sector(hd, (void*)((uint32_t)buf + i * 512));
+            read_from_sector(hd, (void*)((uint32_t)buf + (secs_done + i) * 512));
         }
         secs_done += secs_op;
     }
@@ -218,7 +218,7 @@ void ide_write(disk_t* hd, void* buf, uint32_t sec_cnt, uint32_t lba, int flag) 
         
         for (size_t i = 0;i < secs_op;i++) {
             hd->ide->expecting_intr = true;
-            write_to_sector(hd, (void*)((uint32_t)buf + i * 512));
+            write_to_sector(hd, (void*)((uint32_t)buf + (secs_done + i) * 512));
             if (cur_task->status == TASK_RUNNING && hd->ide->expecting_intr) {
                 //系统初始化时不用异步
                 //只有非初始化时候才会进入这里
