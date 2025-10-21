@@ -16,8 +16,6 @@
 //inode结构 
 #define INODE_PER_BLOCK BLOCK_SIZE / INODE_STRUCT_SIZE
 
-extern void set_root_inode(inode_t* root);  //from inode.c
-
 super_block_t super_blocks[NR_SUPER];
 
 //获取空闲的超级块
@@ -42,9 +40,21 @@ super_block_t* get_super(dev_t dev) {
 //释放设备上的超级块
 void put_super(dev_t dev) {
     super_block_t* sb = get_super(dev);
+    //一些不正确的行为
     if (!sb) {
         panic("Cannot put a null dev");
     }  
+    //卸载根系统盘
+    if (sb == &super_blocks[ROOT_SUPER]) {
+        printk("Change root disk?");
+        return;
+    }
+    //没处理安装到的inode
+    if (sb->imount) {
+        printk("Mounted disk changed");
+        return;
+    }
+    //下面处理超级块的释放
     lock_acquire(&sb->lock);
     for (size_t i = 0;i < INODE_MAP_SIZE;i++) {
         if (sb->inode_map[i]) brelse(sb->inode_map[i]);
@@ -148,7 +158,7 @@ roll_back2:
     return sb;
 }
 
-//挂载根节点
+//挂载超级块`dev`上的根节点
 static inode_t *mount_root_inode(dev_t dev) {
     inode_t* root_inode = iget(dev, ROOT_INODE);
     if (root_inode->nlinks == 0) { 
@@ -170,20 +180,21 @@ static inode_t *mount_root_inode(dev_t dev) {
         bh->dirty = 1;
         brelse(bh);
     }
-    set_root_inode(root_inode);
     return root_inode;
 }
 
 //挂载根目录
-int mount_root(dev_t dev) {
+void mount_root(dev_t dev) {
     if (sizeof(d_inode_t) != INODE_STRUCT_SIZE) {
         panic("Inode structure error");
     }
     super_block_t* sb;
+    inode_t* root_inode;
+    task_block_t* current = running_task();
     //初始化超级块数组
     for (sb = super_blocks;sb < &super_blocks[NR_SUPER];sb++) {
         sb->dev = 0;
-        sb->root_inode = sb->root_mount = NULL;
+        sb->isup = sb->imount = NULL;
         memset(sb->inode_map, 0, sizeof(sb->inode_map));
         memset(sb->zone_map, 0, sizeof(sb->zone_map));
         lock_init(&sb->lock);
@@ -194,12 +205,15 @@ int mount_root(dev_t dev) {
         panic("Unable to mount root");
     }
     //读取根节点
-    inode_t *root_inode = mount_root_inode(dev);
+    root_inode = mount_root_inode(dev);
     if (!root_inode) {
         panic("Unable to mount root inode");
     }
-
-    return ROOT_INODE;
+    //设置进程目录, 挂载超级块
+    root_inode->count += 3;
+    sb->isup = sb->imount = root_inode;
+    current->pwd = root_inode;
+    current->root = root_inode;
 }
 
 extern void fs_inode_init();

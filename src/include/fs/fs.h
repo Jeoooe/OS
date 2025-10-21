@@ -39,8 +39,8 @@ typedef struct super_block_t {
     buffer_t* inode_map[INODE_MAP_SIZE];
     buffer_t* zone_map[ZONE_MAP_SIZE];      //从1开始计数
     dev_t dev;                              //对应设备号
-    struct inode_t* root_inode;             //该文件系统的根目录
-    struct inode_t* root_mount;             //该文件系统安装到的inode
+    struct inode_t* isup;             //该文件系统的根目录
+    struct inode_t* imount;             //该文件系统安装到的inode
     lock_t lock;                            
 } super_block_t;
 
@@ -72,6 +72,8 @@ typedef struct inode_t {
     uint16_t count; //引用数
     int dirty;      //是否已修改
     int i_pipe;     //是否是管道
+    //时间
+    uint32_t ctime; //修改时间
 } inode_t;
 
 //硬盘中的inode结构 应该是32字节
@@ -92,15 +94,40 @@ typedef struct dir_entry_t {
     char filename[MAX_FILE_NAME_LEN];
 } dir_entry_t;
 
+//文件
+typedef struct file_t {
+    uint16_t mode;          //文件操作模式
+    uint16_t flags;         //文件打开和控制标志
+    uint16_t count;         //对应文件引用计数
+    inode_t* inode;         //对应inode
+    uint32_t pos;           //读写位置
+} file_t;
+
+
+
+
 super_block_t* get_super(dev_t dev);
 
+/* from inode.c */
+
+//获取设备dev上nr号的节点
 inode_t* iget(dev_t dev, int nr);
+//释放节点, 如果修改过节点信息会写入
 void iput(inode_t* inode);
+
+//获取文件的数据块, 如果不存在则返回0
+int get_block(inode_t *inode, int block);
+
+//获取文件的数据块, 如果不存在则创建
+int create_block(inode_t* inode, int block);
 
 /* from bitmap.c */
 //申请新inode
 inode_t* new_inode(dev_t dev);
 //申请新逻辑块, 返回逻辑块号
 int new_block(dev_t dev);
+
+void free_inode(inode_t* inode);
+void free_block(dev_t dev, uint32_t block);
 
 #endif

@@ -203,6 +203,8 @@ static void task_setup() {
     task->jiffies = 0;
     task->brk = 0x100000;
     task->pd_addr = PDIR_BASE;
+    task->gid = 0;
+    task->umask = 022;
     task->self_kstack = (uint32_t*)((uint32_t)task + PAGE_SIZE);
     task->self_kstack -= sizeof(interrupt_stack_t);
     task->self_kstack -= sizeof(task_stack_t);
@@ -229,6 +231,10 @@ static void task_setup() {
     task->ticks = task->priority;
     task->vaddr_map = &kernel_vaddr_map;
     task->pd_addr = PDIR_BASE;
+    task->gid = 0;
+    task->umask = 022;
+
+
     update_tss_esp(task);
     all_threads[1] = task;
 }

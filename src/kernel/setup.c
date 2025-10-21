@@ -1,6 +1,7 @@
 /* 
  * 系统进入用户态后的初始化
  */
+#include <debug.h>
 extern void ide_init();
 extern void device_init();
 extern void buffer_init();
@@ -31,9 +32,17 @@ void sys_setup() {
 
 #include <fs/fs.h>
 #include <device/dev.h>
+#include <time.h>
 static void test() {
-    device_t* part = device_find(DEV_IDE_PART, 0);
-
-    //同步该分区的数据
-    sync_dev(part->dev);
+    LOGK("Time: %d", CURRENT_TIME);
+    tm time;
+    time_read(&time);
+    LOGK("Cur Time: %d/%d/%d-%d:%d:%d",
+        time.tm_year,
+        time.tm_mon,
+        time.tm_mday,
+        time.tm_hour,
+        time.tm_min,
+        time.tm_sec
+    );
 }

@@ -44,6 +44,7 @@ enum SYSCALL_NR {
     SYS_FORK = 57,
     SYS_EXIT,
     SYS_WAITPID,
+    SYS_UMASK,
 };
 
 /// @brief 获取当前进程pid
@@ -75,6 +76,11 @@ void exit(int error_code);
 /// @param options 可选项 暂时没有实现
 /// @return 等待进程的pid
 pid_t waitpid(pid_t pid, int *status, int options);
+
+/// @brief 修改进程权限
+/// @param mask 权限值
+/// @return 旧的权限值
+uint16_t umask(uint16_t mask);
 
 /// @brief 系统初始化, 只可调用一次
 void setup();

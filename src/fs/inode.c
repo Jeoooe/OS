@@ -1,4 +1,5 @@
 #include <fs/fs.h>
+#include <time.h>
 #include <string.h>
 #include <debug.h>
 #include <assert.h>
@@ -7,9 +8,11 @@
 
 #define INODE_PER_BLOCK BLOCK_SIZE / INODE_STRUCT_SIZE
 
+//文件最大数据块
+#define MAX_BLOCKS_PER_FILE (7 + 512 + 512*512)
+
 //内存inode表
 static inode_t inode_table[NR_INODE];   
-static inode_t* root_inode;         //根目录inode指针
 
 static void read_inode(inode_t* inode);
 static void write_inode(inode_t* inode);
@@ -27,10 +30,97 @@ void sync_inode() {
     }
 }
 
-//给super.c加载根目录用的
-void set_root_inode(inode_t* root) {
-    if (root)
-        root_inode = root;
+/* 文件数据块相关 */
+
+static int _bmap(inode_t* inode, int block, int create) {
+    assert(block >= 0);
+    assert(block < MAX_BLOCKS_PER_FILE);
+
+    buffer_t *bh;
+    int i;
+
+    //直接块
+    if (block < 7) {
+        if (create && !inode->zones[block]) {
+            inode->zones[block] = new_block(inode->dev);
+            if (inode->zones[block]) {
+                inode->ctime = CURRENT_TIME;
+                inode->dirty = 1;
+            }
+        }
+        return inode->zones[block];
+    }
+
+    //一级块
+    block -= 7;
+    if (block < 512) {
+        if (create && !inode->zones[7]) {
+            inode->zones[7] = new_block(inode->dev);
+            if (inode->zones[7]) {
+                inode->ctime = CURRENT_TIME;
+                inode->dirty = 1;
+            }
+        }
+        if (!inode->zones[7]) return 0;
+        //读取一级间接块
+        bh = bread(inode->dev, inode->zones[7]);
+        if (!bh) return 0;
+        i = ((uint16_t*)(bh->data))[block];
+        if (create && !i) {
+            //创建
+            i = new_block(inode->dev);
+            if (i) {
+                ((uint16_t*)bh->data)[block] = i;
+                bh->dirty = 1;
+            }
+        }
+        brelse(bh);
+        return i;
+    }
+
+    //二级间接块
+    block -= 512;
+    if (create && !inode->zones[8]) {
+        if ((inode->zones[8] = new_block(inode->dev))) {
+            inode->ctime = CURRENT_TIME;
+            inode->dirty = 1;
+        }
+    }
+    if (!inode->zones[8]) 
+        return 0;
+    if (!(bh = bread(inode->dev, inode->zones[8]))) 
+        return 0;
+    i = ((uint16_t*)bh->data)[block>>9];
+    if (create && !i) {
+        if ((i = new_block(inode->dev))) {
+            ((uint16_t*)(bh->data))[block>>9] = i;
+            bh->dirty = 1;
+        }
+    }
+    brelse(bh);
+    if (!i) 
+        return 0;
+    if (!(bh=bread(inode->dev, i)))
+        return 0;
+    i = ((uint16_t*)bh->data)[block&511];
+    if (create && !i) {
+        if ((i=new_block(inode->dev))) {
+            ((uint16_t*)(bh->data))[block & 511] = i;
+            bh->dirty = 1;
+        }
+    }
+    brelse(bh);
+    return i;
+}
+
+//获取文件的数据块(文件的数据块表索引), 如果不存在则返回0
+int get_block(inode_t *inode, int block) {
+    return _bmap(inode, block, 0);
+}
+
+//获取文件的数据块(文件的数据块表索引), 如果不存在则创建
+int create_block(inode_t* inode, int block) {
+    return _bmap(inode, block, 1);
 }
 
 //从内存inode表中获取空闲位置

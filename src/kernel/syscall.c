@@ -13,6 +13,7 @@ extern void sys_setup();    //from setup.c
 extern int sys_fork();  //from thread.c
 extern void sys_exit(int error_code); //from exit.c
 extern pid_t sys_waitpid(pid_t pid,int *status, int options);   //from exit.c
+extern uint16_t sys_umask(uint16_t mask);   //from system.c
 
 pid_t sys_getpid();
 pid_t sys_getppid();
@@ -27,6 +28,7 @@ void syscall_init() {
     syscall_table[SYS_GETPPID] = sys_getppid;
     syscall_table[SYS_EXIT] = sys_exit;
     syscall_table[SYS_WAITPID] = sys_waitpid;
+    syscall_table[SYS_UMASK] = sys_umask;
 }
 
 pid_t sys_getpid() {
@@ -74,5 +76,9 @@ int write(int fd, const char* buf, size_t count) {
 
 pid_t waitpid(pid_t pid, int *status, int options) {
     return _syscall3(SYS_WAITPID, pid, status, options);
+}
+
+uint16_t umask(uint16_t mask) {
+    return _syscall1(SYS_UMASK, (uint32_t)mask);
 }
 

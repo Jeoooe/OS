@@ -9,7 +9,7 @@
 
 #define INTR_TIME_VECTOR 0x20
 
-#define IRQ0_HZ 100
+
 #define INPUT_HZ 1193180
 #define COUNTER0_VALUE INPUT_HZ / IRQ0_HZ
 #define COUNTER0_PORT 0x40
@@ -20,6 +20,7 @@
 
 #define MS_PER_INTR (1000 / IRQ0_HZ)
 
+uint32_t startup_time;  
 uint32_t ticks; //内核中断以来总ticks
 
 static void intr_timer_handler() {
@@ -51,8 +52,16 @@ static void frequency_set() {
     outb(COUNTER0_PORT, (uint8_t)(COUNTER0_VALUE>>8));
 }
 
+
+extern void time_read(tm *time);
 void timer_init() {
     LOGK("Timer init...");
+    
+    //设置开机时间
+    tm time;
+    time_read(&time);
+    startup_time = mktime(&time);
+
     ticks = 0;
     frequency_set();
     register_handler(INTR_TIME_VECTOR, intr_timer_handler);
