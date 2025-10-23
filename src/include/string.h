@@ -8,6 +8,7 @@ char *strncpy(char *dest, const char *src, size_t count);
 char *strcat(char *dest, const char *src);
 size_t strlen(const char *str);
 int strcmp(const char *lhs, const char *rhs);
+int strncmp(const char* lhs, const char* rhs, int len);
 char *strchr(const char *str, int ch);
 char *strrchr(const char *str, int ch);
 int memcmp(const void *lhs, const void *rhs, size_t count);

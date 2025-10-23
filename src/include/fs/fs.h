@@ -73,7 +73,8 @@ typedef struct inode_t {
     int dirty;      //是否已修改
     int i_pipe;     //是否是管道
     //时间
-    uint32_t ctime; //修改时间
+    uint32_t c_time; //修改时间
+    uint32_t a_time; //访问时间
 } inode_t;
 
 //硬盘中的inode结构 应该是32字节
@@ -90,8 +91,8 @@ typedef struct d_inode_t {
 
 /* 目录项 应该刚好是32字节*/
 typedef struct dir_entry_t {
-    uint16_t i_no;  //指向的文件的inode
     char filename[MAX_FILE_NAME_LEN];
+    uint16_t i_no;  //指向的文件的inode
 } dir_entry_t;
 
 //文件
@@ -121,7 +122,9 @@ int get_block(inode_t *inode, int block);
 //获取文件的数据块, 如果不存在则创建
 int create_block(inode_t* inode, int block);
 
+
 /* from bitmap.c */
+
 //申请新inode
 inode_t* new_inode(dev_t dev);
 //申请新逻辑块, 返回逻辑块号
@@ -129,5 +132,13 @@ int new_block(dev_t dev);
 
 void free_inode(inode_t* inode);
 void free_block(dev_t dev, uint32_t block);
+
+
+
+/* namei.c */
+
+//根据文件名返回inode
+//失败返回NULL
+inode_t* namei(const char* pathname);
 
 #endif

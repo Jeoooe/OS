@@ -47,7 +47,7 @@ typedef struct task_block_t {
     uint32_t* self_kstack;  //线程在内核态下运行时使用的栈
     uint32_t error_code;    //调用exit后保存的值
     uint32_t uid;           //进程用户ID, 应该是仅区分Kernel和User
-    uint32_t gid;           //用户组id
+    
     pid_t pid;
     pid_t ppid;
     task_status status;
@@ -64,6 +64,8 @@ typedef struct task_block_t {
     struct inode_t* pwd;    //进程工作目录
     struct inode_t* root;   //进程的根目录, 即"/"对应的inode
     uint16_t umask;         //进程的用户权限
+    uint32_t gid;           //用户组id
+    uint32_t euid;          //进程用户id
     uint32_t magic;
 } task_block_t;
 

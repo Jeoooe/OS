@@ -42,6 +42,7 @@ size_t strlen(const char *str) {
     while (*ptr != EOS) ++ptr;
     return ptr - str;
 }
+
 int strcmp(const char *lhs, const char *rhs) {
     while (*lhs == *rhs && *lhs != EOS && *rhs != EOS) {
         ++lhs;
@@ -49,6 +50,30 @@ int strcmp(const char *lhs, const char *rhs) {
     }
     return *lhs < *rhs ? -1 : *lhs > *rhs;
 }
+
+int strncmp(const char* lhs, const char* rhs, int len) {
+    register int __res;
+    asm(
+        "cld\n"
+        "1:\t decl %3\n"
+        "js 2f\n"
+        "lodsb\n"
+        "scasb\n"
+        "jne 3f\n"
+        "testb %%al, %%al\n"
+        "jne 1f\n"
+        "2:\t xorl %%eax, %%eax\n"  //NULL字符, 返回值为0
+        "jmp 4f\n"
+        "3:\t movl $1, %%eax\n"     //1 > 2
+        "jl 4f\n"
+        "negl %%eax\n"              //1 < 2
+        "4:"
+        :"=a"(__res): "D"(lhs), "S"(rhs), "c"(len)
+    );
+    return __res;
+}
+
+
 char *strchr(const char *str, int ch) {
     char *ptr = (char *)str;
     while (true) {

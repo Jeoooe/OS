@@ -44,7 +44,7 @@ static int _bmap(inode_t* inode, int block, int create) {
         if (create && !inode->zones[block]) {
             inode->zones[block] = new_block(inode->dev);
             if (inode->zones[block]) {
-                inode->ctime = CURRENT_TIME;
+                inode->c_time = CURRENT_TIME;
                 inode->dirty = 1;
             }
         }
@@ -57,7 +57,7 @@ static int _bmap(inode_t* inode, int block, int create) {
         if (create && !inode->zones[7]) {
             inode->zones[7] = new_block(inode->dev);
             if (inode->zones[7]) {
-                inode->ctime = CURRENT_TIME;
+                inode->c_time = CURRENT_TIME;
                 inode->dirty = 1;
             }
         }
@@ -82,7 +82,7 @@ static int _bmap(inode_t* inode, int block, int create) {
     block -= 512;
     if (create && !inode->zones[8]) {
         if ((inode->zones[8] = new_block(inode->dev))) {
-            inode->ctime = CURRENT_TIME;
+            inode->c_time = CURRENT_TIME;
             inode->dirty = 1;
         }
     }
