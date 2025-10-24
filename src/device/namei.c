@@ -4,12 +4,18 @@
 
 #include <os.h>
 #include <assert.h>
+#include <thread.h>
 #include <fs/fs.h>
 #include <fs/stat.h>
+#include <fs/fcntl.h>
+#include <errno.h>
 #include <time.h>
 #include <string.h>
 
 #define DIR_ENTRIES_PER_BLOCK BLOCK_SIZE / 32
+
+//访问模式宏
+#define  ACC_MODE(x) ("\004\002\006\377"[(x) & O_ACCMODE])
 
 #define MAY_EXEC 1
 #define MAY_WRITE 2
@@ -108,6 +114,54 @@ static buffer_t* find_entry(inode_t** dir, const char* name, int namelen, dir_en
     //都搜索完了没找到
     brelse(bh);
     return NULL;
+}
+
+//添加一个目录项
+static buffer_t* add_entry(inode_t* dir, const char* name, int namelen, dir_entry_t** res_dir) {
+    int block, i;
+    buffer_t* bh;
+    dir_entry_t* de;
+
+    *res_dir = NULL;
+    if (namelen > MAX_FILE_NAME_LEN) return NULL;
+    
+    if (!namelen) return NULL;  //没有名字
+    if (!(block = dir->zones[0])) return NULL;  //目录没有数据
+    if (!(bh = bread(dir->dev, block))) return NULL;
+    
+    i = 0;
+    de = (dir_entry_t*)bh->data;
+    while (1) {
+        if ((char*)de >= BLOCK_SIZE + bh->data) {
+            brelse(bh);
+            bh = NULL;
+            block = create_block(dir, i / DIR_ENTRIES_PER_BLOCK);
+            if (!block) return NULL;
+            if (!(bh = bread(dir->dev, block))) {
+                i += DIR_ENTRIES_PER_BLOCK;
+                continue;
+            }
+            de = (dir_entry_t*)bh->data;
+        }
+        //i * 目录项大小超出inode指出的size, 说明没有因为删除文件留下的空位
+        if (i * sizeof(dir_entry_t) >= dir->size) {
+            de->i_no = 0;
+            dir->size = (i + 1) * sizeof(dir_entry_t);
+            dir->dirty = 1;
+            dir->c_time = CURRENT_TIME;
+        }
+        //当前de为空, 则找到一个空闲目录项
+        if (!de->i_no) {
+            dir->mtime = CURRENT_TIME;
+            //复制文件名
+            strncpy(de->filename, name, namelen);
+            bh->dirty = 1;
+            *res_dir = de;
+            return bh;
+        }
+        de++;
+        i++;
+    }
 }
 
 // 根据路径名搜索最顶端目录的inode
@@ -218,4 +272,109 @@ inode_t* namei(const char* pathname) {
         dir->dirty = 1;
     }
     return dir;
+}
+
+/// @brief `open()`使用的namei函数
+/// @param pathname 文件名
+/// @param flag 打开标志, 见 `fcntl.h`
+/// @param mode 若创建文件, 则指定文件的许可属性 见`stat.h`
+/// @param res_inode 对应文件的inode
+/// @return 成功返回0, 否则返回出错码
+int open_namei(const char* pathname, int flag, int mode, inode_t** res_inode) {
+    const char* basename;
+    int nr, dev, namelen;
+    inode_t* dir, *inode;
+    buffer_t* bh;
+    dir_entry_t* de;
+    task_block_t* current = running_task();
+
+    //访问模式的处理
+    //如果只读 但是有截断标志, 则要添加写标志
+    if ((flag & O_TRUNC) && !(flag & O_ACCMODE)) {
+        flag |= O_WRONLY;
+    }
+    //然后用当前进程的文件访问许可码屏蔽给定模式
+    mode &= ~current->umask & 0777;
+    mode |= I_REGULAR;  //打开文件不存在时默认的新文件属性
+    
+    //寻找inode
+    dir = dir_namei(pathname, &namelen, &basename);
+    if (!dir) { //路径不存在
+        return -ENOENT;
+    }
+    //如果目录名为0 (/usr/这种), 如果操作没有写,创建和文件长度截0,则是在打开一个目录名文件操作
+    if (!namelen) {
+        if (!(flag & (O_ACCMODE | O_CREAT | O_TRUNC))) {
+            *res_inode = dir;
+            return 0;
+        }
+        iput(dir);
+        return -EISDIR;
+    }
+    //根据最顶层目录名, 查找路径最后文件名对应的de
+    bh = find_entry(&dir, basename, namelen, &de);
+    if (!bh) {
+        if (!(flag & O_CREAT)) {
+            iput(dir);
+            return -ENOENT;
+        }
+        if (!permission(dir, MAY_WRITE)) {
+            iput(dir);
+            return -EACCES;
+        }
+        //确定是创建操作并具备了写权限
+        //申请新inode, 失败则放回并返回没有空间
+        inode = new_inode(dir->dev);
+        if (!inode) {
+            iput(dir);
+            return -ENOSPC; //没有空间
+        }
+        inode->uid = current->euid;
+        inode->mode = mode;
+        inode->dirty = 1;
+        bh = add_entry(dir, basename, namelen, &de);
+        //创建新目录失败
+        if (!bh) {
+            inode->nlinks --;
+            iput(inode);
+            iput(dir);
+            return -ENOSPC;
+        }
+        de->i_no = inode->i_num;
+        bh->dirty = 1;
+        brelse(bh);
+        iput(dir);
+        *res_inode = inode;
+        return 0;
+    }
+    //取出目录项成功
+    nr = de->i_no;
+    dev = dir->dev;
+    brelse(bh);
+    iput(dir);
+
+    //如果独占操作置位, 但是文件已存在, 则返回错误码
+    if (flag & O_EXCL) {
+        return -EEXIST;
+    }
+
+    //读取inode内容 
+    inode = iget(dev, nr);
+    if (!inode) {
+        return -EACCES;
+    }
+    //如果是目录, 但是访问模式是写或者读写, 或者没有权限, 则返回错误
+    if ((S_ISDIR(inode->mode) && (flag & O_ACCMODE)) ||
+     !permission(inode, ACC_MODE(flag))) {
+        iput(inode);
+        return -EPERM;
+    }
+    //更新inode访问时间
+    inode->a_time = CURRENT_TIME;
+    //如果有截零标志则截零
+    if (flag & O_TRUNC) {
+        truncate(inode);
+    }
+    *res_inode = inode;
+    return 0;
 }

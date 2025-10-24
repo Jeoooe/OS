@@ -38,13 +38,16 @@
 
 enum SYSCALL_NR {
     SYS_SETUP = 0,
-    SYS_GETPID,
-    SYS_GETPPID,
+    SYS_EXIT = 1,
+    SYS_FORK,
+    SYS_READ,
     SYS_WRITE,
-    SYS_FORK = 57,
-    SYS_EXIT,
+    SYS_OPEN,
+    SYS_CLOSE,
     SYS_WAITPID,
-    SYS_UMASK,
+    SYS_GETPID = 20,
+    SYS_UMASK = 60,
+    SYS_GETPPID = 64,
 };
 
 /// @brief 获取当前进程pid
@@ -84,5 +87,9 @@ uint16_t umask(uint16_t mask);
 
 /// @brief 系统初始化, 只可调用一次
 void setup();
+
+
+int open(const char* filename, int flag, int mode);
+
 
 #endif

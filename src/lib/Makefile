@@ -18,6 +18,7 @@ LD_FLAGS:= -m elf_i386
 
 
 OBJS:=\
+$(BUILD)/errno.o \
 $(BUILD)/string.o \
 $(BUILD)/vsprintf.o \
 $(BUILD)/list.o \

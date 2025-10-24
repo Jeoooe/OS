@@ -21,6 +21,7 @@ typedef int size_t;
 typedef int16_t pid_t;
 
 typedef int dev_t;
+typedef short mode_t;
 
 
 #define _packed __attribute__((packed))

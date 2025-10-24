@@ -68,7 +68,6 @@ static inline void scroll_up() {
     //超出显存
     if (screen_position >= MEM_END) {
         //复制一个屏幕到显存开头,然后设置屏幕为0
-        //TODO
         screen_position = 0;
     }
     //将下一行清空

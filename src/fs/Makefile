@@ -20,7 +20,8 @@ OBJS:=\
 $(BUILD)/fs/buffer.o \
 $(BUILD)/fs/super.o \
 $(BUILD)/fs/inode.o \
-$(BUILD)/fs/bitmap.o 
+$(BUILD)/fs/bitmap.o \
+$(BUILD)/fs/fs.o 
 
 $(BUILD)/fs/%.o: %.c
 	$(CC) $(CFLAGS) $(CDEBUG) -c -o $@ $<

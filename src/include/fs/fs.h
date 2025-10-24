@@ -4,6 +4,19 @@
 #include <fs/buffer.h>
 #include <mutex.h>
 
+// inode.mode字段的标志位
+#define I_TYPE          0170000 //inode类型屏蔽码
+#define I_DIRECTORY     0040000 //目录
+#define I_REGULAR       0100000 //常规文件
+#define I_BLOCK_SPECIAL 0060000 //块设备
+#define I_CHAR_SPECIAL  0020000 //字符设备
+#define I_NAMED_PIPE    0010000 //命名管道
+#define I_SET_UID_BIT   0004000 //执行时设置有效用户ID
+#define I_SET_GID_BIT   0002000 //执行时设置有效组 id
+
+#define NR_FILE 64              //系统最多同时打开文件数
+#define NR_OPEN 8               //一个进程最多打开文件数
+
 #define INODE_STRUCT_SIZE 32    //d_inode_t大小
 //下面两个不要动了
 #define LOG2_BLOCK_SECTOR 1     
@@ -18,12 +31,6 @@
 
 #define ROOT_INODE 1
 #define ROOT_SUPER 0    //根目录超级块在超级块数组中的位置
-
-enum file_type {
-    FT_UNKNOWN,
-    FT_REGULAR,
-    FT_DIRECTORY
-};
 
 /* 超级块 */
 typedef struct super_block_t {
@@ -104,7 +111,7 @@ typedef struct file_t {
     uint32_t pos;           //读写位置
 } file_t;
 
-
+extern file_t file_table[NR_FILE];
 
 
 super_block_t* get_super(dev_t dev);
@@ -134,11 +141,18 @@ void free_inode(inode_t* inode);
 void free_block(dev_t dev, uint32_t block);
 
 
+/* from truncate.c */
+void truncate(inode_t* inode);
+
 
 /* namei.c */
 
 //根据文件名返回inode
 //失败返回NULL
 inode_t* namei(const char* pathname);
+
+int open_namei(const char* pathname, int flag, int mode, inode_t** res_inode);
+
+
 
 #endif

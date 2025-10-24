@@ -9,8 +9,7 @@
 #include <list.h>
 #include <bitmap.h>
 #include <memory.h>
-
-#define MAX_THREAD_COUNT 64
+#include <fs/fs.h>
 
 #define MAX_FILES_OPEN_PER_PROC 8
 
@@ -66,6 +65,7 @@ typedef struct task_block_t {
     uint16_t umask;         //进程的用户权限
     uint32_t gid;           //用户组id
     uint32_t euid;          //进程用户id
+    file_t* filp[NR_OPEN];  //进程文件表
     uint32_t magic;
 } task_block_t;
 
