@@ -104,7 +104,7 @@ static buffer_t* find_entry(inode_t** dir, const char* name, int namelen, dir_en
             }
             de = (dir_entry_t*)bh->data;
         }
-        if (strncmp(name, de->filename, namelen)) {   //名字相同
+        if (strncmp(name, de->filename, namelen) == 0) {   //名字相同
             *res_dir = de;
             return bh;
         }

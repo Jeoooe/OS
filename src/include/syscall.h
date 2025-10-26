@@ -25,6 +25,17 @@
     retval;                         \
 })
 
+#define _syscall2(NUMBER, ARG1, ARG2) ({        \
+    int retval;                     \
+    asm volatile(                   \
+        "int $0x80\n"                \
+        :"=a"(retval)               \
+        :"a"(NUMBER),"b"(ARG1),"c"(ARG2)              \
+        :"memory"                   \
+    );                              \
+    retval;                         \
+})
+
 #define _syscall3(NUMBER, ARG1, ARG2, ARG3) ({        \
     int retval;                     \
     asm volatile(                   \
@@ -48,6 +59,7 @@ enum SYSCALL_NR {
     SYS_GETPID = 20,
     SYS_UMASK = 60,
     SYS_GETPPID = 64,
+    SYS_CREAT = 85,
 };
 
 /// @brief 获取当前进程pid
@@ -90,6 +102,7 @@ void setup();
 
 
 int open(const char* filename, int flag, int mode);
-
+int close(uint32_t fp);
+int creat(const char* pathname, int mode);
 
 #endif

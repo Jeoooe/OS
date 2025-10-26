@@ -2,12 +2,12 @@
 #define OS_MUTEX_H
 
 #include <stdint.h>
-#include <thread.h>
+// #include <thread.h>
 #include <list.h>
 
 typedef struct lock_t {
     list_t waiting_list;    //等待任务的队列
-    task_block_t* holder;   //持有者
+    struct task_block_t* holder;   //持有者
     uint8_t signal;         //信号量
     uint8_t repeat_nr;      //重复申请锁的数量
 } lock_t;

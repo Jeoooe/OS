@@ -20,7 +20,6 @@ char *strncpy(char *dest, const char *src, size_t count) {
             return dest;
         }
     }
-    dest[count - 1] = EOS;
     return dest;
 }
 
@@ -61,7 +60,7 @@ int strncmp(const char* lhs, const char* rhs, int len) {
         "scasb\n"
         "jne 3f\n"
         "testb %%al, %%al\n"
-        "jne 1f\n"
+        "jne 1b\n"
         "2:\t xorl %%eax, %%eax\n"  //NULL字符, 返回值为0
         "jmp 4f\n"
         "3:\t movl $1, %%eax\n"     //1 > 2

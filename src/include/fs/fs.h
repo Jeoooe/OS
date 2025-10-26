@@ -89,7 +89,7 @@ typedef struct d_inode_t {
     //刚好32字节
     uint16_t mode;          //文件属性
     uint16_t uid;           //宿主id
-    uint32_t size;          //大小
+    uint32_t size;          //文件大小, 如果是目录, 则代表目录项总大小(n * 32)
     uint32_t mtime;         //修改时间
     uint8_t gid;            //文件组id
     uint8_t nlinks;         //链接数
@@ -137,7 +137,9 @@ inode_t* new_inode(dev_t dev);
 //申请新逻辑块, 返回逻辑块号
 int new_block(dev_t dev);
 
+//释放inode
 void free_inode(inode_t* inode);
+//释放逻辑块
 void free_block(dev_t dev, uint32_t block);
 
 

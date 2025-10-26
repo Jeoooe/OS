@@ -1,6 +1,7 @@
 /* 
  * 系统进入用户态后的初始化
  */
+#include <os.h>
 #include <debug.h>
 extern void ide_init();
 extern void device_init();
@@ -31,18 +32,13 @@ void sys_setup() {
 }
 
 #include <fs/fs.h>
-#include <device/dev.h>
-#include <time.h>
+#include <fs/stat.h>
+#include <syscall.h>
+#include <thread.h>
 static void test() {
-    LOGK("Time: %d", CURRENT_TIME);
-    tm time;
-    time_read(&time);
-    LOGK("Cur Time: %d/%d/%d-%d:%d:%d",
-        time.tm_year,
-        time.tm_mon,
-        time.tm_mday,
-        time.tm_hour,
-        time.tm_min,
-        time.tm_sec
-    );
+    task_block_t* cur = running_task(); 
+    uint32_t fp = creat("/a.out", S_IFREG | 0777);
+    printk("Open a.out \n");
+    close(fp);
+    sync_dev(3);
 }

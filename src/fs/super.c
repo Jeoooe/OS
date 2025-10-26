@@ -1,4 +1,5 @@
 #include <fs/fs.h>
+#include <fs/stat.h>
 #include <device/dev.h>
 #include <ide.h>
 #include <string.h>
@@ -92,10 +93,22 @@ static void create_super(d_super_block_t* sb, dev_t dev) {
     free_blocks = MIN(free_blocks, MAX_ZONE_COUNT); //有硬盘大小限制
     sb->zones = free_blocks;
     sb->first_zone = 2 + sb->zone_bitmap_blocks + sb->inode_bitmap_blocks + inode_blocks;
-    sb->inodes_count = 1;
+    sb->inodes_count = inode_cnt;   //这里是设置设备最多有多少inode
     sb->max_size = 0;
     
     sb->magic = MAGIC;
+
+    //以下会设置两个位图0位为1, 占位不用
+    //设置逻辑块位图第0个为1
+    buffer_t* bh = bread(dev, 2 + INODE_MAP_SIZE);
+    bh->data[0] = 1;
+    bh->dirty = 1;
+    brelse(bh);
+    //设置inode位图第0个为1
+    bh = bread(dev, 2);
+    bh->data[0] = 1;
+    bh->dirty = 1;
+    brelse(bh); 
 }
 
 //读取`dev`设备的超级块, 如果不存在则自动创建文件系统的超级块
@@ -129,7 +142,7 @@ static super_block_t* read_super(dev_t dev) {
 
     sb->dev = dev;
     //调试时候, 直接创建
-    if (d_sb->magic == MAGIC && false) { //文件系统已经创建
+    if (d_sb->magic == MAGIC) { //文件系统已经创建
         goto load_to_memory;
     }
 
@@ -167,6 +180,9 @@ static inode_t *mount_root_inode(dev_t dev) {
         root_inode = new_inode(dev);    //创建一个
         //创建一个逻辑块给他
         root_inode->zones[0] = new_block(dev);
+        //设置根目录的属性
+        root_inode->mode = S_IFDIR | 0755;
+        root_inode->size = 2 * sizeof(dir_entry_t);
         //然后写入两个目录项
         //到底为什么要用这么粗暴的方式来写根目录的两个目录项
         //但是我实在抄不到Linus的代码了
@@ -177,8 +193,12 @@ static inode_t *mount_root_inode(dev_t dev) {
         dentry++;
         dentry->i_no = ROOT_INODE;
         memcpy(dentry->filename, "..", 2);
+
+        //写入目录项
         bh->dirty = 1;
         brelse(bh);
+        //反正所有东西都同步到硬盘里面
+        sync_dev(dev);
     }
     return root_inode;
 }

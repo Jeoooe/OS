@@ -6,7 +6,7 @@
 
 #define NR_INODE 64 //内存inode数量
 
-#define INODE_PER_BLOCK BLOCK_SIZE / INODE_STRUCT_SIZE
+#define INODE_PER_BLOCK (BLOCK_SIZE / INODE_STRUCT_SIZE)
 
 //文件最大数据块
 #define MAX_BLOCKS_PER_FILE (7 + 512 + 512*512)
@@ -244,7 +244,8 @@ static void write_inode(inode_t* inode) {
     if (!bh) {
         panic("Unable to read inode block");
     }
-    ((d_inode_t*)bh->data)[(inode->i_num - 1) % INODE_PER_BLOCK] = *(d_inode_t*)inode;
+    d_inode_t* data = (d_inode_t*)bh->data;
+    data[(inode->i_num - 1) % INODE_PER_BLOCK] = *(d_inode_t*)inode;
     bh->dirty = 1;
     inode->dirty = 0;
     brelse(bh);

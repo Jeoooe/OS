@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <mutex.h>
 #include <list.h>
-#include <thread.h>
 
 typedef struct buffer_t {
     char* data;
@@ -20,6 +19,7 @@ typedef struct buffer_t {
     list_node_t hash_node;  //哈希列表的节点
 } buffer_t;
 
+buffer_t* get_from_hashtable(dev_t dev, uint32_t block);
 
 buffer_t* get_blk(dev_t dev, uint32_t block);
 

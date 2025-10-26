@@ -15,6 +15,8 @@ extern void sys_exit(int error_code); //from exit.c
 extern pid_t sys_waitpid(pid_t pid,int *status, int options);   //from exit.c
 extern uint16_t sys_umask(uint16_t mask);   //from system.c
 extern int sys_open(const char* filename, int flag, int mode); //from open.c
+extern int sys_close(uint32_t fd);         //from open.c
+extern int sys_creat(const char* pathname, int mode);   //from open.c
 
 pid_t sys_getpid();
 pid_t sys_getppid();
@@ -31,6 +33,8 @@ void syscall_init() {
     syscall_table[SYS_WAITPID] = sys_waitpid;
     syscall_table[SYS_UMASK] = sys_umask;
     syscall_table[SYS_OPEN] = sys_open;
+    syscall_table[SYS_CLOSE] = sys_close;
+    syscall_table[SYS_CREAT] = sys_creat;
 }
 
 pid_t sys_getpid() {
@@ -86,4 +90,12 @@ uint16_t umask(uint16_t mask) {
 
 int open(const char* filename, int flag, int mode) {
     return _syscall3(SYS_OPEN, filename, flag, mode);
+}
+
+int close(uint32_t fd) {
+    return _syscall1(SYS_CLOSE, fd);
+}
+
+int creat(const char* pathname, int mode) {
+    return _syscall2(SYS_CREAT, pathname, mode);
 }

@@ -26,7 +26,7 @@ static list_t wait_list;    //等待缓冲块的任务列表
 static list_t free_list;    //空闲块列表
 static list_t hash_table[HASH_COUNT];
 
-static buffer_t* get_from_hashtable(dev_t dev, uint32_t block) {
+buffer_t* get_from_hashtable(dev_t dev, uint32_t block) {
     int index = HASH(dev, block);
     buffer_t *buf = NULL;
     list_node_t* node = hash_table[index].head.next;
@@ -111,8 +111,9 @@ buffer_t *bread(dev_t dev, uint32_t block) {
         }
         else break;
     }
-    
-    int err = blk_device_request(dev, buf->data, RW_SECTOR_COUNT, block, 0, REQ_READ);
+    //这里还有和bwrite一样的bug...
+    //读硬盘的扇区索引要乘上 RW_SECTOR_COUNT
+    int err = blk_device_request(dev, buf->data, RW_SECTOR_COUNT, block * RW_SECTOR_COUNT, 0, REQ_READ);
 
     if (err == -1) {    //读取失败
         lock_release(&buf->lock);

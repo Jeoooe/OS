@@ -1,6 +1,7 @@
 #include <mutex.h>
 #include <interrupt.h>
 #include <assert.h>
+#include <thread.h>
 
 /* 申请和释放锁必须是原子操作 */
 //申请锁
