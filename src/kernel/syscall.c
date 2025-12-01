@@ -17,10 +17,13 @@ extern uint16_t sys_umask(uint16_t mask);   //from system.c
 extern int sys_open(const char* filename, int flag, int mode); //from open.c
 extern int sys_close(uint32_t fd);         //from open.c
 extern int sys_creat(const char* pathname, int mode);   //from open.c
+extern int sys_mkdir(const char *pathname, int mode);   //from namei.c
+extern int sys_rmdir(const char *name);                 //from namei.c
 
 pid_t sys_getpid();
 pid_t sys_getppid();
 int sys_write(int fd, const char* buf, size_t count);
+
 
 void syscall_init() {
     LOGK("SYSCALL Init...");
@@ -34,6 +37,8 @@ void syscall_init() {
     syscall_table[SYS_UMASK] = sys_umask;
     syscall_table[SYS_OPEN] = sys_open;
     syscall_table[SYS_CLOSE] = sys_close;
+    syscall_table[SYS_MKDIR] = sys_mkdir;
+    syscall_table[SYS_RMDIR] = sys_rmdir;
     syscall_table[SYS_CREAT] = sys_creat;
 }
 
@@ -98,4 +103,12 @@ int close(uint32_t fd) {
 
 int creat(const char* pathname, int mode) {
     return _syscall2(SYS_CREAT, pathname, mode);
+}
+
+int mkdir(const char *pathname, int mode) {
+    return _syscall2(SYS_MKDIR, pathname, mode);
+}
+
+int rmdir(const char *name) {
+    return _syscall1(SYS_RMDIR, name);
 }

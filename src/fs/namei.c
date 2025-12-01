@@ -154,6 +154,7 @@ static buffer_t* add_entry(inode_t* dir, const char* name, int namelen, dir_entr
         if (!de->i_no) {
             dir->mtime = CURRENT_TIME;
             //复制文件名
+            memset(de->filename, 0, sizeof(de->filename));  //清空一下原文件名
             strncpy(de->filename, name, namelen);
             bh->dirty = 1;
             *res_dir = de;
@@ -376,5 +377,232 @@ int open_namei(const char* pathname, int flag, int mode, inode_t** res_inode) {
         truncate(inode);
     }
     *res_inode = inode;
+    return 0;
+}
+
+
+//创建目录
+int sys_mkdir(const char *pathname, int mode) {
+    const char *basename;
+    int namelen;
+    inode_t *dir, *inode;
+    buffer_t *bh, *dir_block;
+    dir_entry_t *de;
+
+    task_block_t *current = running_task();
+    //有效用户权限
+    //这个权限可能要求太高了?
+    // if (current->euid != 0) return -EPERM;
+    dir = dir_namei(pathname, &namelen, &basename);
+    if (!dir) return -ENOENT;
+    if (!namelen) {
+        iput(dir);
+        return -ENOENT;
+    }
+
+    //检查同名目录
+    bh = find_entry(&dir, basename, namelen, &de);
+    if (bh) {
+        brelse(bh);
+        iput(dir);
+        return -EEXIST;
+    }
+    inode = new_inode(dir->dev);
+    if (!inode) {               //没有空间
+        iput(dir);
+        return -ENOSPC;
+    }
+    inode->size = 2 * sizeof(dir_entry_t);
+    inode->dirty = 1;
+    inode->mtime = inode->a_time = CURRENT_TIME;
+    //保存目录项数据
+    //先申请逻辑块
+    inode->zones[0] = new_block(inode->dev);
+    if (!inode->zones[0]) {
+        iput(dir);
+        inode->nlinks--;
+        iput(inode);
+        return -ENOSPC;
+    }
+    inode->dirty = 1;
+    //申请磁盘块
+    dir_block = bread(inode->dev, inode->zones[0]);
+    if (!dir_block) {
+        iput(dir);
+        inode->nlinks--;
+        iput(inode);
+        return -ENOSPC;
+    }
+
+    //创建默认目录项 .. .
+    de = (dir_entry_t *)dir_block->data;
+    de->i_no = inode->i_num;
+    strcpy(de->filename, ".");
+    de++;
+    de->i_no = dir->i_num;
+    strcpy(de->filename, "..");
+    inode->nlinks = 2;
+    dir_block->dirty = 1;
+    brelse(dir_block);
+    inode->mode = I_DIRECTORY | (mode & 0777 & ~current->umask);
+    inode->dirty = 1;
+
+    //最后把新建的目录放到指定目录下面
+    bh = add_entry(dir, basename, namelen, &de);
+    if (!bh) {
+        iput(dir);
+        free_block(inode->dev, inode->zones[0]);
+        inode->nlinks = 0;
+        iput(inode);
+        return -ENOSPC;
+    }
+    de->i_no = inode->i_num;
+    bh->dirty = 1;
+    dir->nlinks++;
+    dir->dirty = 1;
+    iput(dir);
+    iput(inode);
+    brelse(bh);
+    return 0;
+}
+
+
+/// @brief 用于检查目录是否为空 用于rmdir
+/// @param inode 检查的目录inode
+/// @return 1为空, 0为不空
+static int empty_dir(inode_t *inode) {
+    int nr, block, len;
+    buffer_t *bh;
+    dir_entry_t *de;
+    
+    len = inode->size / sizeof(dir_entry_t);
+    if (len < 2 || !inode->zones[0] || 
+    !(bh = bread(inode->dev, inode->zones[0]))) {
+        //目录存在问题
+        printk("Warning: Bad directory on dev %x\n", inode->dev);
+        return 0;
+    }
+    de = (dir_entry_t *)bh->data;
+    if (de[0].i_no != inode->i_num || !de[1].i_no || 
+    strcmp(".", de[0].filename) || strcmp("..", de[1].filename)) {
+        printk("Warning: Bad directory on dev %x\n", inode->dev);
+        return 0;
+    }
+    nr = 2;
+    de += 2;
+    while (nr < len) {
+        if ((void *)de >= (void *) (bh->data + BLOCK_SIZE)) {
+            brelse(bh);
+            block = get_block(inode, nr / DIR_ENTRIES_PER_BLOCK);
+            if (!block) {
+                nr += DIR_ENTRIES_PER_BLOCK;
+                continue;
+            }
+            if (!(bh = bread(inode->dev, block))) {
+                return 0;
+            }
+            de = (dir_entry_t *)bh->data;
+        }
+        if (de->i_no) {
+            brelse(bh);
+            return 0;
+        }
+        de++;
+        nr++;
+    }
+    //没有已用目录项
+    brelse(bh);
+    return 1;
+}
+
+/// @brief 删除目录, 必须是空的
+/// @param name 目录路径
+/// @return 出错码
+int sys_rmdir(const char *name) {
+    const char *basename;
+    int namelen;
+    inode_t *dir, *inode;
+    buffer_t *bh;
+    dir_entry_t *de;
+    task_block_t *current = running_task();
+
+    //先检查许可
+    
+    if (current->euid != 0) return -EPERM;
+    if (!(dir = dir_namei(name, &namelen, &basename))) {
+        return -ENOENT;
+    }
+    if (!namelen) {
+        iput(dir);
+        return -ENOENT;
+    }
+    if (!permission(dir, MAY_WRITE)) {
+        iput(dir);
+        return -EPERM;
+    }
+    bh = find_entry(&dir, basename, namelen, &de);
+    if (!bh) {
+        iput(dir);
+        return -ENOENT;
+    }
+    if (!(inode = iget(dir->dev, de->i_no))) {
+        iput(dir);
+        brelse(bh);
+        return -EPERM;
+    }
+    
+    //检查删除操作是否可行
+    //受限删除并且有效用户不是root, 且不等于该节点用户id
+    if ((dir->mode & S_ISVTX) && current->euid != 0 && 
+    inode->uid != current->euid) {
+        iput(dir);
+        iput(inode);
+        brelse(bh);
+        return -EPERM;
+    }
+
+    //设备号与父目录不同, 或者引用数大于1
+    if (inode->dev != dir->dev || inode->count > 1) {
+        iput(dir);
+        iput(inode);
+        brelse(bh);
+        return -EPERM;
+    }
+
+    //试图删除"."
+    if (inode == dir) {
+        iput(inode);
+        iput(dir);
+        brelse(bh);
+        return -EPERM;
+    }
+    //不是一个目录
+    if (!S_ISDIR(inode->mode)) {
+        iput(inode);
+        iput(dir);
+        brelse(bh);
+        return -ENOTDIR;
+    }
+    //不为空
+    if (!empty_dir(inode)) {
+        iput(inode);
+        iput(dir);
+        brelse(bh);
+        return -ENOTEMPTY;
+    }
+    //链接数应为2
+    if (inode->nlinks != 2) {
+        printk("empty directory has nlink != 2 (%d)", inode->nlinks);
+    }
+    de->i_no = 0;
+    bh->dirty = 1;
+    brelse(bh);   
+    inode->nlinks = 0;
+    inode->dirty = 1;
+    dir->nlinks--;
+    dir->c_time = dir->mtime = CURRENT_TIME;
+    dir->dirty = 1;
+    iput(dir);
+    iput(inode);
     return 0;
 }

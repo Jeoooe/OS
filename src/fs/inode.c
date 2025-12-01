@@ -180,10 +180,13 @@ void iput(inode_t* inode) {
         return;
     }
 
-    //删除文件
-    // if (inode->nlinks == 0) {
-    //     //TODO
-    // }
+    // 删除文件
+    if (inode->nlinks == 0) {
+        lock_release(&inode->lock);
+        truncate(inode);
+        free_inode(inode);
+        return;
+    }
 
     //这里说明引用数为1, 释放后要写入磁盘
 

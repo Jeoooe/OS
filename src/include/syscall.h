@@ -59,6 +59,8 @@ enum SYSCALL_NR {
     SYS_GETPID = 20,
     SYS_UMASK = 60,
     SYS_GETPPID = 64,
+    SYS_MKDIR = 83,
+    SYS_RMDIR = 84,
     SYS_CREAT = 85,
 };
 
@@ -104,5 +106,16 @@ void setup();
 int open(const char* filename, int flag, int mode);
 int close(uint32_t fp);
 int creat(const char* pathname, int mode);
+
+/// @brief 创建目录
+/// @param pathname 路径名字
+/// @param mode 目录的权限
+/// @return 错误码
+int mkdir(const char *pathname, int mode);
+
+/// @brief 删除目录
+/// @param name 目录名
+/// @return 错误码
+int rmdir(const char *name);
 
 #endif

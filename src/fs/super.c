@@ -183,6 +183,8 @@ static inode_t *mount_root_inode(dev_t dev) {
         //设置根目录的属性
         root_inode->mode = S_IFDIR | 0755;
         root_inode->size = 2 * sizeof(dir_entry_t);
+        root_inode->nlinks = 2;
+        root_inode->dirty = 1;
         //然后写入两个目录项
         //到底为什么要用这么粗暴的方式来写根目录的两个目录项
         //但是我实在抄不到Linus的代码了
