@@ -72,13 +72,6 @@ pid_t getpid();
 /// @return 子进程pid
 pid_t getppid();
 
-/// @brief 写入数据
-/// @param fd 文件描述符
-/// @param buf 写入数据的缓冲区
-/// @param count 写入数据字节数
-/// @return 写入字节数, 失败时返回-1
-int write(int fd, const char* buf, size_t count);
-
 /// @brief 创建子进程
 /// @return 父进程返回子进程pid, 子进程返回0
 extern int fork();
@@ -117,5 +110,19 @@ int mkdir(const char *pathname, int mode);
 /// @param name 目录名
 /// @return 错误码
 int rmdir(const char *name);
+
+/// @brief 读取数据
+/// @param fd 文件描述符
+/// @param buf 读取缓冲区
+/// @param count 读取字节数
+/// @return 读取实际字节数, 失败-1
+int read(unsigned int fd, char *buf, int count);
+
+/// @brief 写入数据
+/// @param fd 文件描述符
+/// @param buf 写入数据的缓冲区
+/// @param count 写入数据字节数
+/// @return 写入字节数, 失败时返回-1
+int write(unsigned int fd, char *buf, int count);
 
 #endif

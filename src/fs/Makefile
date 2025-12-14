@@ -25,6 +25,8 @@ $(BUILD)/fs/namei.o \
 $(BUILD)/fs/open.o \
 $(BUILD)/fs/super.o \
 $(BUILD)/fs/truncate.o \
+$(BUILD)/fs/read_write.o \
+$(BUILD)/fs/file_dev.o \
 
 $(BUILD)/fs/%.o: %.c
 	$(CC) $(CFLAGS) $(CDEBUG) -c -o $@ $<

@@ -5,7 +5,7 @@
 #include <console.h>
 #include <memory.h>
 
-#define syscall_nr 32
+#define syscall_nr 128
 
 void* syscall_table[syscall_nr];
 
@@ -19,16 +19,17 @@ extern int sys_close(uint32_t fd);         //from open.c
 extern int sys_creat(const char* pathname, int mode);   //from open.c
 extern int sys_mkdir(const char *pathname, int mode);   //from namei.c
 extern int sys_rmdir(const char *name);                 //from namei.c
+extern int sys_read(unsigned int fd, char *buf, int count);     //from read_write.c
+extern int sys_write(unsigned int fd, char *buf, int count);    //from read_write.c
 
 pid_t sys_getpid();
 pid_t sys_getppid();
-int sys_write(int fd, const char* buf, size_t count);
-
 
 void syscall_init() {
     LOGK("SYSCALL Init...");
     syscall_table[SYS_SETUP] = sys_setup;
     syscall_table[SYS_GETPID] = sys_getpid;
+    syscall_table[SYS_READ] = sys_read;
     syscall_table[SYS_WRITE] = sys_write;
     syscall_table[SYS_FORK] = sys_fork;
     syscall_table[SYS_GETPPID] = sys_getppid;
@@ -50,15 +51,6 @@ pid_t sys_getppid() {
 }
 
 
-int sys_write(int fd, const char* buf, size_t count) {
-    if (fd == stdout || fd == stdin) {
-        console_write(buf, count);
-        return count;
-    }
-    return -1;
-}
-
-
 
 /*
  * 用户态的系统调用函数在下面
@@ -76,7 +68,11 @@ pid_t getppid() {
     return _syscall0(SYS_GETPPID);
 }
 
-int write(int fd, const char* buf, size_t count) {
+int read(unsigned int fd, const char* buf, size_t count) {
+    return _syscall3(SYS_READ, fd, buf, count);
+}
+
+int write(unsigned int fd, const char* buf, size_t count) {
     return _syscall3(SYS_WRITE, fd, buf, count);
 }
 
