@@ -13,7 +13,7 @@ int file_read(inode_t *inode, file_t *filp, char *buf, int count) {
 
     left = count;
     while (left) {
-        if (nr = get_block(inode, (filp->pos) / BLOCK_SIZE)) {
+        if ((nr = get_block(inode, (filp->pos) / BLOCK_SIZE))) {
             if (!(bh = bread(inode->dev, nr))) break;
         } else {
             bh = NULL;

@@ -31,19 +31,18 @@ void sys_setup() {
     while (1);
 }
 
+//test部分
+char buf[1024];
+
 #include <fs/fs.h>
 #include <fs/stat.h>
+#include <fs/fcntl.h>
 #include <syscall.h>
 #include <thread.h>
 static void test() {
-    task_block_t* cur = running_task(); 
-    // uint32_t fp = creat("/a.out", S_IFREG | 0777);
-    // printk("Open a.out \n");
-    // close(fp);
-    int code = mkdir("/home", 0777);
-    code = rmdir("/etc");
-    printk("Create directory: /home");
-    code = rmdir("/home");
-    code = mkdir("/dev", 077);
+    char ss[16];
+    unsigned int fd = open("aaa", O_RDWR, 0777);
+    read(fd, ss, 16);
+    close(fd);
     sync_dev(3);
 }

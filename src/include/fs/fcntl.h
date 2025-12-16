@@ -53,7 +53,7 @@ struct flock {
 
 //以下的函数原型
 //创建新文件, 或者重写一个已存在的文件
-extern int creat(const char* filename, mode_t mode);
+extern int creat(const char* filename, int mode);
 
 //文件句柄操作
 // `fildes` 是文件句柄, `cmd`是操作命令. 有三种形式
@@ -63,6 +63,6 @@ extern int creat(const char* filename, mode_t mode);
 extern int fcntl(int fildes, int cmd, ...);
 
 //打开文件
-extern int open(const char *filename, int flags, ...);
+// extern int open(const char *filename, int flags, ...);
 
 #endif

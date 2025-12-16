@@ -68,11 +68,11 @@ pid_t getppid() {
     return _syscall0(SYS_GETPPID);
 }
 
-int read(unsigned int fd, const char* buf, size_t count) {
+int read(unsigned int fd, char* buf, int count) {
     return _syscall3(SYS_READ, fd, buf, count);
 }
 
-int write(unsigned int fd, const char* buf, size_t count) {
+int write(unsigned int fd, char* buf, int count) {
     return _syscall3(SYS_WRITE, fd, buf, count);
 }
 

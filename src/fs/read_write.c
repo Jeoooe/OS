@@ -51,10 +51,6 @@ int sys_write(unsigned int fd, char *buf, int count) {
 
     //普通的文件
     if (S_ISDIR(inode->mode) || S_ISREG(inode->mode)) {
-        if (file->pos + count > inode->size) {
-            count = inode->size - file->pos;
-        }
-        if (count <= 0) return 0;
         return file_write(inode, file, buf, count);
     }
 
