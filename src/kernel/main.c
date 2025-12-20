@@ -52,8 +52,27 @@ void kernel_main() {
         ;
 }
 
+#include <device/dev.h>
+static char getch() {
+    static dev_t kb = -1;
+    char a;
+
+    if (kb == -1) {
+        kb = device_find(DEV_KEYBOARD, 0)->dev;
+    }
+
+    if (kb) {
+        device_read(kb, &a, 1, 0, 0);
+    }
+    return a;
+}
+
 void init() {
     setup();
+
+    while (1) {
+        char a = getch();
+    }
     while (1)
         ;
 }

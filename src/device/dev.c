@@ -3,6 +3,7 @@
 #include <debug.h>
 #include <string.h>
 #include <os.h>
+#include <fs/stat.h>
 
 //设备数组
 static device_t devices[NR_DEVICES];
@@ -28,6 +29,8 @@ device_t* device_find(int subtype, size_t index) {
     return NULL;
 }
 
+extern int sys_mknod(const char *filename, int mode, int dev);
+
 dev_t device_install(const char* name, 
     dev_t parent, int type, int sub_type, void* ptr, 
     void* ioctl, void* read, void* write) {
@@ -46,6 +49,19 @@ dev_t device_install(const char* name,
     device->ioctl = ioctl;
     device->read = read;
     device->write = write;
+
+    //如果文件系统已经准备好, 就挂载设备
+    if (fs_ready == 1) {
+        char filename[24] = "/mnt/"; 
+        unsigned int mode = 0;
+        if (device->type == DEV_CHAR) {    
+            mode |= S_IFCHR | 0444;     //只读
+        } else if (device->type == DEV_BLOCK) {
+            mode |= S_IFBLK | 0777;     //RWX
+        }
+        strcat(filename, device->name);
+        sys_mknod(filename, mode, device->dev);
+    }
 
     return device->dev;
 }

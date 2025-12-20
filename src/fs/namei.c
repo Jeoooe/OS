@@ -606,3 +606,64 @@ int sys_rmdir(const char *name) {
     iput(inode);
     return 0;
 }
+
+
+/// @brief 创建特殊文件或节点, 可以添加普通文件, 设备文件或者管道
+/// @param filename 文件名
+/// @param mode 使用许可和节点类型
+/// @param dev 设备号
+/// @return 成功0, 否则错误码
+int sys_mknod(const char *filename, int mode, int dev) {
+    const char *basename;
+    int namelen;
+    inode_t *dir, *inode;
+    buffer_t *bh;
+    dir_entry_t *de;
+
+    task_block_t *current = running_task();
+
+    if (current->euid != 0) return -EPERM;
+    if (!(dir = dir_namei(filename, &namelen, &basename))) {
+        return -ENOENT;
+    }
+    if (!namelen) {
+        iput(dir);
+        return -ENOENT;
+    }
+    if (!permission(dir, MAY_WRITE)) {
+        iput(dir);
+        return EPERM;
+    }
+
+    bh = find_entry(&dir, basename, namelen, &de);
+    //文件已存在
+    if (bh) {
+        brelse(bh);
+        iput(dir);
+        return -EEXIST;
+    }
+    inode = new_inode(dir->dev);
+    if (!inode) {
+        iput(dir);
+        return -ENOSPC;
+    }
+    inode->mode = mode;
+    if (S_ISBLK(mode) || S_ISCHR(mode))
+        inode->zones[0] = dev;
+    inode->mtime = inode->a_time = CURRENT_TIME;
+    inode->dirty = 1;
+
+    bh = add_entry(dir, basename, namelen, &de);
+    if (!bh) {
+        iput(dir);
+        inode->nlinks = 0;
+        iput(inode);
+        return -ENOSPC;
+    }
+    de->i_no = inode->i_num;
+    bh->dirty = 1;
+    iput(dir);
+    iput(inode);
+    brelse(bh);
+    return 0;
+}

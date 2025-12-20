@@ -48,20 +48,21 @@
 })
 
 enum SYSCALL_NR {
-    SYS_SETUP = 0,
-    SYS_EXIT = 1,
-    SYS_FORK,
-    SYS_READ,
-    SYS_WRITE,
-    SYS_OPEN,
-    SYS_CLOSE,
-    SYS_WAITPID,
-    SYS_GETPID = 20,
-    SYS_UMASK = 60,
-    SYS_GETPPID = 64,
-    SYS_MKDIR = 83,
-    SYS_RMDIR = 84,
-    SYS_CREAT = 85,
+    SYS_SETUP       = 0,
+    SYS_EXIT        = 1,
+    SYS_FORK        = 2,
+    SYS_READ        = 3,
+    SYS_WRITE       = 4,
+    SYS_OPEN        = 5,
+    SYS_CLOSE       = 6,
+    SYS_WAITPID     = 7,
+    SYS_CREAT       = 8,
+    SYS_MKNOD       = 14,
+    SYS_GETPID      = 20,
+    SYS_UMASK       = 60,
+    SYS_GETPPID     = 64,
+    SYS_MKDIR       = 39,
+    SYS_RMDIR       = 40,
 };
 
 /// @brief 获取当前进程pid
@@ -124,5 +125,12 @@ int read(unsigned int fd, char *buf, int count);
 /// @param count 写入数据字节数
 /// @return 写入字节数, 失败时返回-1
 int write(unsigned int fd, char *buf, int count);
+
+/// @brief 创建特殊文件或节点, 可以添加普通文件, 设备文件或者管道
+/// @param filename 文件名
+/// @param mode 使用许可和节点类型
+/// @param dev 设备号
+/// @return 成功0, 否则错误码
+int mknod(const char *filename, int mode, int dev);
 
 #endif

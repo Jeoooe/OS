@@ -19,6 +19,8 @@ enum device_type{
 enum sub_device_type {
     DEV_IDE_HARDDISK = 1,   //硬盘
     DEV_IDE_PART,           //硬盘分区
+
+    DEV_KEYBOARD,           //键盘
 };
 
 enum blk_device_direct {
@@ -65,7 +67,10 @@ dev_t device_install(const char* name, dev_t parent, int type, int sub_type, voi
 //根据设备号获取设备
 device_t* device_get(dev_t dev);
 
-//根据子设备类型寻找设备
+/// @brief 根据子设备类型寻找设备
+/// @param subtype 子设备类型
+/// @param index 需要第几个子设备, 从0开始
+/// @return 设备指针
 device_t* device_find(int subtype, size_t index);
 
 int device_ioctl(dev_t dev, int cmd, void *args, int flag);

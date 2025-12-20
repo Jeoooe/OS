@@ -112,7 +112,7 @@ typedef struct file_t {
 } file_t;
 
 extern file_t file_table[NR_FILE];
-
+extern int fs_ready;
 
 super_block_t* get_super(dev_t dev);
 

@@ -19,6 +19,8 @@
 
 super_block_t super_blocks[NR_SUPER];
 
+extern int sys_mkdir(const char *pathname, int mode);   //创建文件夹
+
 //获取空闲的超级块
 static super_block_t* get_free_super() {
     super_block_t* sb = super_blocks;
@@ -236,6 +238,12 @@ void mount_root(dev_t dev) {
     sb->isup = sb->imount = root_inode;
     current->pwd = root_inode;
     current->root = root_inode;
+
+
+    // 确保基本的文件结构存在
+    // /mnt /bin
+    sys_mkdir("/mnt/", 0777);
+    sys_mkdir("/bin/", 0777);
 }
 
 extern void fs_inode_init();
@@ -243,4 +251,5 @@ void root_setup() {
     //需要初始化inode_table
     fs_inode_init();
     mount_root(device_find(DEV_IDE_PART, 0)->dev);
+    fs_ready = 1;
 }

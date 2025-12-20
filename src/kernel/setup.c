@@ -28,21 +28,16 @@ void sys_setup() {
     
 
     //这里应该就是停止了
-    while (1);
 }
 
 //test部分
-char buf[1024];
-
 #include <fs/fs.h>
 #include <fs/stat.h>
 #include <fs/fcntl.h>
 #include <syscall.h>
 #include <thread.h>
+
+
 static void test() {
-    char ss[16];
-    unsigned int fd = open("aaa", O_RDWR, 0777);
-    read(fd, ss, 16);
-    close(fd);
-    sync_dev(3);
+    
 }

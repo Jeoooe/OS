@@ -21,6 +21,7 @@ extern int sys_mkdir(const char *pathname, int mode);   //from namei.c
 extern int sys_rmdir(const char *name);                 //from namei.c
 extern int sys_read(unsigned int fd, char *buf, int count);     //from read_write.c
 extern int sys_write(unsigned int fd, char *buf, int count);    //from read_write.c
+extern int sys_mknod(const char *filename, int mode, int dev);  //from namei.c
 
 pid_t sys_getpid();
 pid_t sys_getppid();
@@ -35,12 +36,14 @@ void syscall_init() {
     syscall_table[SYS_GETPPID] = sys_getppid;
     syscall_table[SYS_EXIT] = sys_exit;
     syscall_table[SYS_WAITPID] = sys_waitpid;
+    syscall_table[SYS_CREAT] = sys_creat;
     syscall_table[SYS_UMASK] = sys_umask;
     syscall_table[SYS_OPEN] = sys_open;
     syscall_table[SYS_CLOSE] = sys_close;
     syscall_table[SYS_MKDIR] = sys_mkdir;
     syscall_table[SYS_RMDIR] = sys_rmdir;
-    syscall_table[SYS_CREAT] = sys_creat;
+    syscall_table[SYS_MKNOD] = sys_mknod;
+
 }
 
 pid_t sys_getpid() {
@@ -107,4 +110,8 @@ int mkdir(const char *pathname, int mode) {
 
 int rmdir(const char *name) {
     return _syscall1(SYS_RMDIR, name);
+}
+
+int mknod(const char *filename, int mode, int dev) {
+    return _syscall3(SYS_MKNOD, filename, mode, dev);
 }
