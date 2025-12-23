@@ -21,6 +21,7 @@ OBJS:=\
 $(BUILD)/dev.o \
 $(BUILD)/keyboard.o \
 $(BUILD)/ring.o \
+$(BUILD)/tty.o \
 
 
 $(BUILD)/%.o: %.c

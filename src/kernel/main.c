@@ -3,6 +3,7 @@
 #include <debug.h>
 #include <thread.h>
 #include <syscall.h>
+#include <fs/fcntl.h>
 
 extern void interrupt_init();
 extern void timer_init();
@@ -23,6 +24,7 @@ void kernel_main() {
     task_init();
 
     interrupt_mask(INTERRUPT_TIMER, true);
+    interrupt_mask(INTERRUPT_KEYBOARD, true);
     interrupt_mask(INTERRUPT_SLAVE, true);
     interrupt_mask(INTERRUPT_HARDDISK_MASTER, true);
     interrupt_mask(INTERRUPT_HARDDISK_SLAVE, true);
@@ -54,24 +56,25 @@ void kernel_main() {
 
 #include <device/dev.h>
 static char getch() {
-    static dev_t kb = -1;
     char a;
-
-    if (kb == -1) {
-        kb = device_find(DEV_KEYBOARD, 0)->dev;
-    }
-
-    if (kb) {
-        device_read(kb, &a, 1, 0, 0);
-    }
+    (void) read(0, &a, 1);
     return a;
+}
+static void putch(char a) {
+    write(1, &a, 1);
 }
 
 void init() {
     setup();
 
+    //标准输出输入错误
+    (void) open("/dev/tty0", O_RDWR, 0);    //stdin
+    (void) dup(0);                          //stdout
+    (void) dup(0);                          //stderr
+
     while (1) {
         char a = getch();
+        putch(a);
     }
     while (1)
         ;

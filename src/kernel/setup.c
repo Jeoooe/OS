@@ -8,8 +8,10 @@ extern void device_init();
 extern void buffer_init();
 extern void root_setup();
 extern void keyboard_init();
+extern void tty_init();
 
 static void test();
+extern void uninstall_all_char_device();
 
 void sys_setup() {
     static int called = 0;
@@ -24,10 +26,13 @@ void sys_setup() {
     //文件系统
     root_setup();
 
-    test();
+    //部分设备
+    uninstall_all_char_device();
+    keyboard_init();
+    tty_init();
     
 
-    //这里应该就是停止了
+    test();
 }
 
 //test部分
@@ -36,8 +41,8 @@ void sys_setup() {
 #include <fs/fcntl.h>
 #include <syscall.h>
 #include <thread.h>
-
+#include <device/dev.h>
 
 static void test() {
-    
+
 }

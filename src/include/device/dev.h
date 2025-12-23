@@ -21,6 +21,7 @@ enum sub_device_type {
     DEV_IDE_PART,           //硬盘分区
 
     DEV_KEYBOARD,           //键盘
+    DEV_TTY,                //终端
 };
 
 enum blk_device_direct {
@@ -63,6 +64,8 @@ typedef struct request_t {
 
 //安装设备
 dev_t device_install(const char* name, dev_t parent, int type, int sub_type, void* ptr, void* ioctl, void* read, void* write);
+//卸载设备
+int device_uninstall(dev_t dev);
 
 //根据设备号获取设备
 device_t* device_get(dev_t dev);
@@ -82,5 +85,7 @@ int device_write(dev_t dev, void *buf, size_t count, uint32_t index, int flag);
 //块设备请求, 失败返回-1
 //`index`是相对于起始扇区的索引
 int blk_device_request(dev_t dev, void *buf, size_t count, uint32_t index, int flag, uint32_t type);
+//字符设备请求
+int char_device_request(dev_t dev, void *buf, size_t count, uint32_t index, int flag, uint32_t type);
 
 #endif

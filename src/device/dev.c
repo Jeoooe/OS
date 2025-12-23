@@ -4,12 +4,18 @@
 #include <string.h>
 #include <os.h>
 #include <fs/stat.h>
+/*
+    我决定从10开始分配其他设备
+    1-9是固定几个设备, 便于使用
+    1:  键盘
+    2-9: 暂无
+*/
 
 //设备数组
 static device_t devices[NR_DEVICES];
 
 static device_t* get_free_device() {
-    for (size_t i = 1;i < NR_DEVICES;i++) {
+    for (size_t i = 10;i < NR_DEVICES;i++) {
         if (devices[i].type == DEV_NULL) {
             return &devices[i];
         }
@@ -22,7 +28,8 @@ device_t* device_get(dev_t dev) {
 }
 
 device_t* device_find(int subtype, size_t index) {
-    for (size_t i = 1;i < NR_DEVICES;i++) {
+    if (subtype == DEV_KEYBOARD) return &devices[1];
+    for (size_t i = 10;i < NR_DEVICES;i++) {
         if (devices[i].sub_type != subtype) continue;
         if (index-- == 0) return &devices[i];
     }
@@ -30,11 +37,18 @@ device_t* device_find(int subtype, size_t index) {
 }
 
 extern int sys_mknod(const char *filename, int mode, int dev);
+extern int sys_unlink(const char *name);
 
 dev_t device_install(const char* name, 
     dev_t parent, int type, int sub_type, void* ptr, 
     void* ioctl, void* read, void* write) {
-    device_t* device = get_free_device();
+
+    device_t *device = NULL;
+    if (sub_type == DEV_KEYBOARD) {
+        device = &devices[1];   //键盘固定1
+    } else {
+        device = get_free_device();
+    }
 
     //为空
     if (!device) {
@@ -52,10 +66,10 @@ dev_t device_install(const char* name,
 
     //如果文件系统已经准备好, 就挂载设备
     if (fs_ready == 1) {
-        char filename[24] = "/mnt/"; 
+        char filename[24] = "/dev/"; 
         unsigned int mode = 0;
         if (device->type == DEV_CHAR) {    
-            mode |= S_IFCHR | 0444;     //只读
+            mode |= S_IFCHR | 0777;     //RWX
         } else if (device->type == DEV_BLOCK) {
             mode |= S_IFBLK | 0777;     //RWX
         }
@@ -66,7 +80,13 @@ dev_t device_install(const char* name,
     return device->dev;
 }
 
-
+int device_uninstall(dev_t dev) {
+    device_t *device = &devices[dev];
+    char name[24] = "/dev/";
+    strcat(name, device->name);
+    if (device->type == DEV_NULL) return -1;
+    return sys_unlink(name);
+}
 
 int device_ioctl(dev_t dev, int cmd, void *args, int flag) {
     device_t *device = device_get(dev);
@@ -176,6 +196,49 @@ int blk_device_request(dev_t dev, void *buf,
     return ret;
 }
 
+int char_device_request(dev_t dev, void *buf, 
+    size_t count, uint32_t index, int flag, uint32_t type
+    ) {
+    device_t* ch_dev = device_get(dev);
+    request_t* req = (request_t*)kmalloc(sizeof(request_t));
+
+    if (!ch_dev) { //不存在
+        return -1;
+    }
+
+    req->buf = buf;
+    req->count = count;
+    req->dev = ch_dev->dev;
+    req->flag = flag;
+    req->index = index;
+    req->type = type;
+    req->task = running_task();
+    
+    
+    bool empty = list_empty(&ch_dev->request_list);
+    //插入列表并维护有序
+    list_insert_sort(&ch_dev->request_list, &req->req_node, element_node_offset(request_t, req_node, index));
+
+    //前面有请求
+    if (!empty) {
+        task_block(TASK_BLOCKED);
+    }
+
+    int ret = do_request(req);
+
+    request_t* next_req = request_nextreq(ch_dev, req);
+
+    list_remove(&req->req_node);
+    kfree(req);
+
+    if (next_req) {
+        assert(next_req->task->magic == MAGIC);
+        task_unblock(next_req->task);
+    }
+
+    return ret;
+}
+
 
 void device_init() {
     for (size_t i = 0;i < NR_DEVICES;i++) {
@@ -184,5 +247,14 @@ void device_init() {
         devices[i].parent = 0;
         devices[i].ptr = NULL;
         list_init(&devices[i].request_list);
+    }
+}
+
+
+void uninstall_all_char_device() {
+    device_uninstall(1);
+    for (size_t i = 1;i < NR_DEVICES; i++) {
+        if (devices[i].type == DEV_CHAR) 
+            device_uninstall(devices[i].dev);
     }
 }

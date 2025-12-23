@@ -57,12 +57,15 @@ enum SYSCALL_NR {
     SYS_CLOSE       = 6,
     SYS_WAITPID     = 7,
     SYS_CREAT       = 8,
+    SYS_UNLINK      = 10,
     SYS_MKNOD       = 14,
     SYS_GETPID      = 20,
-    SYS_UMASK       = 60,
-    SYS_GETPPID     = 64,
     SYS_MKDIR       = 39,
     SYS_RMDIR       = 40,
+    SYS_DUP         = 41,
+    SYS_UMASK       = 60,
+    SYS_DUP2        = 63,
+    SYS_GETPPID     = 64,
 };
 
 /// @brief 获取当前进程pid
@@ -132,5 +135,21 @@ int write(unsigned int fd, char *buf, int count);
 /// @param dev 设备号
 /// @return 成功0, 否则错误码
 int mknod(const char *filename, int mode, int dev);
+
+/// @brief 复制文件句柄
+/// @param fd 句柄
+/// @return 新句柄
+int dup(unsigned int fd);
+
+/// @brief 复制文件句柄到指定句柄
+/// @param oldfd 句柄
+/// @param newfd 新句柄
+/// @return 新句柄
+int dup2(unsigned int oldfd, unsigned int newfd);
+
+/// @brief 删除文件链接
+/// @param name 文件路径名
+/// @return 0或错误码
+int unlink(const char *name);
 
 #endif

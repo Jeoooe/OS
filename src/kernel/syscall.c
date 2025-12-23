@@ -23,6 +23,10 @@ extern int sys_read(unsigned int fd, char *buf, int count);     //from read_writ
 extern int sys_write(unsigned int fd, char *buf, int count);    //from read_write.c
 extern int sys_mknod(const char *filename, int mode, int dev);  //from namei.c
 
+extern int sys_dup(unsigned int fd);                        //from fcntl.c
+extern int sys_dup2(unsigned int oldfd, unsigned int newfd);//from fcntl.c
+extern int sys_unlink(const char *name);                    //from namei.c
+
 pid_t sys_getpid();
 pid_t sys_getppid();
 
@@ -43,7 +47,9 @@ void syscall_init() {
     syscall_table[SYS_MKDIR] = sys_mkdir;
     syscall_table[SYS_RMDIR] = sys_rmdir;
     syscall_table[SYS_MKNOD] = sys_mknod;
-
+    syscall_table[SYS_DUP] = sys_dup;
+    syscall_table[SYS_DUP2] = sys_dup2;
+    syscall_table[SYS_UNLINK] = sys_unlink;
 }
 
 pid_t sys_getpid() {
@@ -114,4 +120,16 @@ int rmdir(const char *name) {
 
 int mknod(const char *filename, int mode, int dev) {
     return _syscall3(SYS_MKNOD, filename, mode, dev);
+}
+
+int dup(unsigned int fd) {
+    return _syscall1(SYS_DUP, fd);
+}
+
+int dup2(unsigned int oldfd, unsigned int newfd) {
+    return _syscall2(SYS_DUP2, oldfd, newfd);
+}
+
+int unlink(const char *name) {
+    return _syscall1(SYS_UNLINK, name);
 }

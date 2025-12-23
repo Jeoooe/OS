@@ -38,7 +38,7 @@ int file_read(inode_t *inode, file_t *filp, char *buf, int count) {
     }
     //设置访问时间
     inode->a_time = CURRENT_TIME;
-    return (count - left) ? (count - left) : -ERROR;
+    return (count - left);
 }
 
 

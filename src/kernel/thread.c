@@ -223,6 +223,7 @@ static void task_setup() {
     task = running_task();
     task->magic = MAGIC;
     task->uid = UID_USER;
+    task->euid = 0;
     task->status = TASK_RUNNING;
     task->pid = 1;
     task->ppid = 0;

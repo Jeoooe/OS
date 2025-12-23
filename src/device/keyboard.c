@@ -210,7 +210,9 @@ static void intr_keyboard_handler(uint8_t vector) {
 
 
 static int keyboard_read(void* dev, void *buf, size_t count, uint32_t index, int flag) {
-    *(char *)buf = io_ring_getchar(&kb_buf);
+    while (count-- > 0) {
+        *(char *)(buf++) = io_ring_getchar(&kb_buf);
+    }
     return 0;
 }
 
@@ -225,6 +227,6 @@ static int keyboard_ioctl(void* dev, int cmd, void *args, int flag) {
 void keyboard_init() {
     io_ring_init(&kb_buf);
     register_handler(KEYBOARD_VECTOR, intr_keyboard_handler);
-    device_install("KEYBOARD", 0, DEV_CHAR, DEV_KEYBOARD, NULL, 
+    device_install("keyboard", 0, DEV_CHAR, DEV_KEYBOARD, NULL, 
         keyboard_ioctl, keyboard_read, keyboard_write);
 }

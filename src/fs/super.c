@@ -241,9 +241,9 @@ void mount_root(dev_t dev) {
 
 
     // 确保基本的文件结构存在
-    // /mnt /bin
-    sys_mkdir("/mnt/", 0777);
-    sys_mkdir("/bin/", 0777);
+    // /dev /bin
+    sys_mkdir("/dev", 0777);
+    sys_mkdir("/bin", 0777);
 }
 
 extern void fs_inode_init();

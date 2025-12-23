@@ -39,8 +39,6 @@ int sys_open(const char* filename, int flag, int mode) {
         return i;
     }
 
-    //TODO 打开特殊文件, (字符设备, 块设备等)
-
     //初始化打开文件的结构
     f->mode = inode->mode;
     f->flags = flag;

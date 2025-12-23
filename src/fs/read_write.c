@@ -2,6 +2,7 @@
 #include <fs/stat.h>
 #include <errno.h>
 #include <thread.h>
+#include <device/dev.h>
 
 
 extern int file_read(inode_t *inode, file_t *filp, char *buf, int count);
@@ -21,6 +22,10 @@ int sys_read(unsigned int fd, char *buf, int count) {
         return 0;
     }
     inode = file->inode;
+
+    if (S_ISCHR(inode->mode)) {
+        return char_device_request(inode->zones[0], buf, count, 0, 0, REQ_READ);
+    }
 
 
     //普通的文件
@@ -48,6 +53,9 @@ int sys_write(unsigned int fd, char *buf, int count) {
     }
     inode = file->inode;
 
+    if (S_ISCHR(inode->mode)) {
+        return char_device_request(inode->zones[0], buf, count, 0, 0, REQ_WRITE);
+    }
 
     //普通的文件
     if (S_ISDIR(inode->mode) || S_ISREG(inode->mode)) {

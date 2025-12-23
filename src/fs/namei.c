@@ -39,7 +39,8 @@ static bool permission(inode_t* inode, int mask) {
     }
 
     //访问权限与屏蔽码相同或者超级用户
-    if (((mode & mask & 0007) == mask) ||  cur_task->uid == UID_KERNEL) {
+    //之前逻辑应该错了, 这里应该检查有效用户ID是否为root, 即0
+    if (((mode & mask & 0007) == mask) ||  cur_task->euid == 0) {
         return true;
     }
     return false;
@@ -391,8 +392,6 @@ int sys_mkdir(const char *pathname, int mode) {
 
     task_block_t *current = running_task();
     //有效用户权限
-    //这个权限可能要求太高了?
-    // if (current->euid != 0) return -EPERM;
     dir = dir_namei(pathname, &namelen, &basename);
     if (!dir) return -ENOENT;
     if (!namelen) {
@@ -527,8 +526,6 @@ int sys_rmdir(const char *name) {
     task_block_t *current = running_task();
 
     //先检查许可
-    
-    if (current->euid != 0) return -EPERM;
     if (!(dir = dir_namei(name, &namelen, &basename))) {
         return -ENOENT;
     }
@@ -620,9 +617,6 @@ int sys_mknod(const char *filename, int mode, int dev) {
     buffer_t *bh;
     dir_entry_t *de;
 
-    task_block_t *current = running_task();
-
-    if (current->euid != 0) return -EPERM;
     if (!(dir = dir_namei(filename, &namelen, &basename))) {
         return -ENOENT;
     }
@@ -665,5 +659,67 @@ int sys_mknod(const char *filename, int mode, int dev) {
     iput(dir);
     iput(inode);
     brelse(bh);
+    return 0;
+}
+
+/// @brief 删除文件名对应的目录项
+/// @param name 文件名
+/// @return 0, 出错码
+int sys_unlink(const char *name) {
+    const char *basename;
+    int namelen;
+    inode_t *dir, *inode;
+    buffer_t *bh;
+    dir_entry_t *de;
+    task_block_t *current = running_task();
+    if (!(dir = dir_namei(name, &namelen, &basename))) return -ENOENT;
+    if (!namelen) {
+        iput(dir);
+        return -ENOENT;
+    }
+    if (!permission(dir, MAY_WRITE)) {
+        iput(dir);
+        return -EPERM;
+    }
+    bh = find_entry(&dir, basename, namelen, &de);
+    if (!bh) {
+        iput(dir);
+        return -ENOENT;
+    }
+    if (!(inode = iget(dir->dev, de->i_no))) {
+        iput(dir);
+        brelse(bh);
+        return -ENOENT;
+    }
+
+    //权限检查
+    if ((dir->mode & S_ISVTX) && current->euid != 0 && 
+        current->euid != inode->uid && current->euid != dir->uid) {
+            iput(dir);
+            iput(inode);
+            brelse(bh);
+            return -EPERM;
+    }
+
+    //是目录
+    if (S_ISDIR(inode->mode)) {
+        iput(inode);
+        iput(dir);
+        brelse(bh);
+        return -EPERM;
+    }
+    //已经是0
+    if (!inode->nlinks) {
+        printk("Deleting nonexistent file");
+        inode->nlinks = 1;
+    }
+    de->i_no = 0;
+    bh->dirty = 1;
+    brelse(bh);
+    inode->nlinks--;
+    inode->dirty = 1;
+    inode->c_time = CURRENT_TIME;
+    iput(inode);
+    iput(dir);
     return 0;
 }
