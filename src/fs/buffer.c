@@ -1,6 +1,5 @@
 /*
     bwrite和brelse函数的资源竞争部分是有隐患的, 如果出现问题可能需要修复
-    BUG
 */
 #include <fs/buffer.h>
 #include <device/dev.h>

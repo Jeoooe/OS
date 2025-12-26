@@ -40,6 +40,7 @@ $(BUILD)/ide.o \
 $(BUILD)/setup.o \
 $(BUILD)/mktime.o \
 $(BUILD)/system.o \
+$(BUILD)/signal.o \
 
 $(BUILD)/%.o: %.c
 	$(CC) $(CFLAGS) $(CDEBUG) -c -o $@ $<

@@ -3,70 +3,25 @@
 
 #include <stdint.h>
 
-#define _syscall0(NUMBER) ({        \
-    int retval;                     \
-    asm volatile(                   \
-        "int $0x80\n"                \
-        :"=a"(retval)               \
-        :"a"(NUMBER)                \
-        :"memory"                   \
-    );                              \
-    retval;                         \
-})
-
-#define _syscall1(NUMBER, ARG1) ({        \
-    int retval;                     \
-    asm volatile(                   \
-        "int $0x80\n"                \
-        :"=a"(retval)               \
-        :"a"(NUMBER),"b"(ARG1)                \
-        :"memory"                   \
-    );                              \
-    retval;                         \
-})
-
-#define _syscall2(NUMBER, ARG1, ARG2) ({        \
-    int retval;                     \
-    asm volatile(                   \
-        "int $0x80\n"                \
-        :"=a"(retval)               \
-        :"a"(NUMBER),"b"(ARG1),"c"(ARG2)              \
-        :"memory"                   \
-    );                              \
-    retval;                         \
-})
-
-#define _syscall3(NUMBER, ARG1, ARG2, ARG3) ({        \
-    int retval;                     \
-    asm volatile(                   \
-        "int $0x80\n"                \
-        :"=a"(retval)               \
-        :"a"(NUMBER),"b"(ARG1),"c"(ARG2),"d"(ARG3)                \
-        :"memory"                   \
-    );                              \
-    retval;                         \
-})
-
-enum SYSCALL_NR {
-    SYS_SETUP       = 0,
-    SYS_EXIT        = 1,
-    SYS_FORK        = 2,
-    SYS_READ        = 3,
-    SYS_WRITE       = 4,
-    SYS_OPEN        = 5,
-    SYS_CLOSE       = 6,
-    SYS_WAITPID     = 7,
-    SYS_CREAT       = 8,
-    SYS_UNLINK      = 10,
-    SYS_MKNOD       = 14,
-    SYS_GETPID      = 20,
-    SYS_MKDIR       = 39,
-    SYS_RMDIR       = 40,
-    SYS_DUP         = 41,
-    SYS_UMASK       = 60,
-    SYS_DUP2        = 63,
-    SYS_GETPPID     = 64,
-};
+#define SYS_SETUP        0
+#define SYS_EXIT         1
+#define SYS_FORK         2
+#define SYS_READ         3
+#define SYS_WRITE        4
+#define SYS_OPEN         5
+#define SYS_CLOSE        6
+#define SYS_WAITPID      7
+#define SYS_CREAT        8
+#define SYS_UNLINK       10
+#define SYS_MKNOD        14
+#define SYS_GETPID       20
+#define SYS_MKDIR        39
+#define SYS_RMDIR        40
+#define SYS_DUP          41
+#define SYS_SIGNAL       48
+#define SYS_UMASK        60
+#define SYS_DUP2         63
+#define SYS_GETPPID      64
 
 /// @brief 获取当前进程pid
 /// @return pid
@@ -151,5 +106,11 @@ int dup2(unsigned int oldfd, unsigned int newfd);
 /// @param name 文件路径名
 /// @return 0或错误码
 int unlink(const char *name);
+
+/// @brief 设置进程信号处理句柄
+/// @param sig 信号
+/// @param fn 句柄
+/// @return 原句柄
+void (*signal(int sig, void (*fn)(int)))(int);
 
 #endif

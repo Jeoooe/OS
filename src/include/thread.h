@@ -6,6 +6,7 @@
 #define OS_THREAD_H
 
 #include <stdint.h>
+#include <signal.h>
 #include <list.h>
 #include <bitmap.h>
 #include <memory.h>
@@ -58,6 +59,8 @@ typedef struct task_block_t {
     list_node_t node;
     uint32_t pd_addr;       //进程的页表地址
     bitmap_t *vaddr_map;    //进程虚拟地址池
+    //信号机制
+    struct signal_table_t signals;
 
     //文件系统
     struct inode_t* pwd;    //进程工作目录
@@ -70,6 +73,7 @@ typedef struct task_block_t {
 } task_block_t;
 
 #define set_cr3(paddr) asm volatile("movl %0, %%cr3"::"r"(paddr))
+#define get_cr3(n) asm("movl %%cr3, %%eax; movl %%eax, %0":"=r"(n))
 
 //创建线程
 task_block_t* task_create(char* name, int priority, thread_func function);

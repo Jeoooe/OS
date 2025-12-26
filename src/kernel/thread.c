@@ -9,8 +9,6 @@
 #include <stdio.h>
 #include <tss.h>
 
-#define get_cr3(n) asm("movl %%cr3, %%eax; movl %%eax, %0":"=r"(n))
-
 extern bitmap_t kernel_vaddr_map; //from memory.c 内核虚拟内存位图
 
 task_block_t* main_thread;  //主线程
@@ -79,26 +77,31 @@ void schedule() {
     task_block_t *cur = running_task();
     task_block_t *next = NULL;
     for (size_t i = 1;i < MAX_THREAD_COUNT;i++) {
-        if (all_threads[i] == NULL) continue;
-        if (all_threads[i] == cur) continue;
-        if (all_threads[i]->status != TASK_READY) continue;
+        task_block_t *p = all_threads[i];
+        if (p == NULL) continue;
+        if (p == cur)  continue;
+        //加入对信号的处理
+        //如果进程在等待状态, 并且收到了信号, 那么置为Ready
+        if (p->status == TASK_WAITING && 
+        (p->signals.pending & ~p->signals.blocked)
+        ) {
+            p->status = TASK_READY;
+        }
+        if (p->status != TASK_READY) continue;
 
         if (next == NULL) {
-            next = all_threads[i];
+            next = p;
             continue;
         }
         //比较时间片
-        if (all_threads[i]->jiffies < next->jiffies || all_threads[i]->ticks > next->ticks) {
-            next = all_threads[i];
+        if (p->jiffies < next->jiffies || p->ticks > next->ticks) {
+            next = p;
         }
     }
     if (cur->status == TASK_RUNNING) {
         //时间片到期
         cur->ticks = cur->priority;
         cur->status = TASK_READY;
-    }
-    else {
-        /* 其他事件发生 , 不加入READY队列 */ 
     }
     // assert(!list_empty(&ready_task_list));
 

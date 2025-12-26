@@ -142,6 +142,7 @@ handler_entry_table:
 
 ;系统调用
 extern syscall_table
+extern do_signal
 global syscall_handler
 syscall_handler:
     push 0
@@ -161,4 +162,17 @@ syscall_handler:
     add esp, 12
     
     mov [esp + 32], eax ;中断栈中eax的位置，作为返回值
+    ;然后是调用信号处理函数
+    call do_signal
+
     jmp intr_exit
+
+global sa_restorer
+sa_restorer:
+    ;   信号处理恢复函数
+    add esp, 8  ;跳过signr 和 blocked
+    pop eax
+    pop ecx
+    pop edx
+    popf
+    ret

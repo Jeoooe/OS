@@ -5,6 +5,50 @@
 #include <console.h>
 #include <memory.h>
 
+#define _syscall0(NUMBER) ({        \
+    int retval;                     \
+    asm volatile(                   \
+        "int $0x80\n"                \
+        :"=a"(retval)               \
+        :"a"(NUMBER)                \
+        :"memory"                   \
+    );                              \
+    retval;                         \
+})
+
+#define _syscall1(NUMBER, ARG1) ({        \
+    int retval;                     \
+    asm volatile(                   \
+        "int $0x80\n"                \
+        :"=a"(retval)               \
+        :"a"(NUMBER),"b"(ARG1)                \
+        :"memory"                   \
+    );                              \
+    retval;                         \
+})
+
+#define _syscall2(NUMBER, ARG1, ARG2) ({        \
+    int retval;                     \
+    asm volatile(                   \
+        "int $0x80\n"                \
+        :"=a"(retval)               \
+        :"a"(NUMBER),"b"(ARG1),"c"(ARG2)              \
+        :"memory"                   \
+    );                              \
+    retval;                         \
+})
+
+#define _syscall3(NUMBER, ARG1, ARG2, ARG3) ({        \
+    int retval;                     \
+    asm volatile(                   \
+        "int $0x80\n"                \
+        :"=a"(retval)               \
+        :"a"(NUMBER),"b"(ARG1),"c"(ARG2),"d"(ARG3)                \
+        :"memory"                   \
+    );                              \
+    retval;                         \
+})
+
 #define syscall_nr 128
 
 void* syscall_table[syscall_nr];
@@ -26,6 +70,8 @@ extern int sys_mknod(const char *filename, int mode, int dev);  //from namei.c
 extern int sys_dup(unsigned int fd);                        //from fcntl.c
 extern int sys_dup2(unsigned int oldfd, unsigned int newfd);//from fcntl.c
 extern int sys_unlink(const char *name);                    //from namei.c
+
+extern void (*sys_signal(int sig, void (*fn)(int)))(int);       //from signal.c
 
 pid_t sys_getpid();
 pid_t sys_getppid();
@@ -50,6 +96,7 @@ void syscall_init() {
     syscall_table[SYS_DUP] = sys_dup;
     syscall_table[SYS_DUP2] = sys_dup2;
     syscall_table[SYS_UNLINK] = sys_unlink;
+    syscall_table[SYS_SIGNAL] = sys_signal;
 }
 
 pid_t sys_getpid() {
@@ -132,4 +179,8 @@ int dup2(unsigned int oldfd, unsigned int newfd) {
 
 int unlink(const char *name) {
     return _syscall1(SYS_UNLINK, name);
+}
+
+void (*signal(int sig, void (*fn)(int)))(int) {
+    return _syscall2(SYS_SIGNAL, sig, fn);
 }

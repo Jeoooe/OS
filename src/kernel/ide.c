@@ -316,7 +316,6 @@ static void partition_info(list_node_t* elem) {
 
 //安装设备
 static void ide_device_install() {
-    //TODO
     for (size_t i = 0;i < channel_cnt;i++) {
         for (size_t j = 0;j < 2;j++) {
             //硬盘不存在

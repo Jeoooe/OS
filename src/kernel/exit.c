@@ -2,6 +2,7 @@
 #include <memory.h>
 #include <debug.h>
 #include <assert.h>
+#include <signal.h>
 
 
 extern task_block_t* all_threads[]; //from thread.c
@@ -11,6 +12,9 @@ extern task_block_t* get_task_by_pid(pid_t pid);    //from thread.c
 extern size_t get_index_by_pid(pid_t pid);   //from thread.c
 
 extern bool get_interrupt_state();            //from interrupt_state
+
+extern int sys_close(uint32_t fd);
+
 //释放子进程
 static void release_task(task_block_t* task) {
     size_t index = get_index_by_pid(task->pid);
@@ -19,13 +23,24 @@ static void release_task(task_block_t* task) {
     all_threads[index] = NULL;
 }
 
-[[noreturn]] void sys_exit(int error_code)  {
+static void tell_father(int pid) {
+    if (pid) {
+        for (int i = 0;i < MAX_THREAD_COUNT;i++) {
+            if (!all_threads[i]) continue;
+            if (all_threads[i]->pid != pid) continue;
+            all_threads[i]->signals.pending |= (1 << (SIGCHLD - 1));
+            return;
+        }
+    }
+    panic("[tell father]: No father found");
+}
+
+//TODO 关闭文件, 发送信号
+[[noreturn]]void do_exit(int error_code) {
     assert(!get_interrupt_state());
     task_block_t* cur_task = running_task();
 
-    //设置该进程状态
-    cur_task->error_code = error_code;
-    cur_task->status = TASK_DIED;
+    
     
     //清内存
     release_memory(cur_task);
@@ -35,7 +50,7 @@ static void release_task(task_block_t* task) {
     for (size_t i = 1;i < MAX_THREAD_COUNT;i++) {
         task_block_t* task = all_threads[i];
         if (task == NULL) continue;
-        if (task->ppid == cur_task->pid) {
+        if (task->ppid == cur_task->pid) {  //找到一个子进程
             task->ppid = cur_task->ppid;
         }
     }
@@ -45,12 +60,27 @@ static void release_task(task_block_t* task) {
         task_unblock(parent);
     }
 
+    //关闭所有文件
+    for (int i = 0;i < NR_OPEN; i++) {
+        if (cur_task->filp[i]) sys_close(i);
+    }
+    iput(cur_task->pwd);
+    cur_task->pwd = NULL;
+    iput(cur_task->root);
+    cur_task->root = NULL;
+
+    //设置该进程状态
+    cur_task->error_code = error_code;
+    cur_task->status = TASK_DIED;
+    tell_father(cur_task->ppid);
     //调度
     schedule();
 
     panic("This place should be unreachable!");
-    while (1) 
-        ;
+}
+
+[[noreturn]] void sys_exit(int error_code)  {
+    do_exit((error_code & 0xff) << 8);
 }
 
 pid_t sys_waitpid(pid_t pid, int *status, [[unused]] int options) {
