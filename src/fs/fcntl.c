@@ -5,6 +5,7 @@
 
 extern int sys_close(unsigned int fd);
 
+//复制文件句柄, fd是复制的文件, arg是新句柄最小值
 static int dupfd(unsigned int fd, unsigned int arg) {
     task_block_t *current = running_task();
     if (fd >= NR_OPEN || !current->filp[fd]) {
@@ -16,6 +17,7 @@ static int dupfd(unsigned int fd, unsigned int arg) {
         else break;
     }
     if (arg >= NR_OPEN) return -EMFILE;
+    current->close_on_exec &= ~(1 << arg);
     current->filp[arg] = current->filp[fd];
     current->filp[fd]->count++;
     return arg;

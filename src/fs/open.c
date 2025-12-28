@@ -29,6 +29,7 @@ int sys_open(const char* filename, int flag, int mode) {
     if (i >= NR_FILE) return -EINVAL;
 
     //找到了进程文件表和系统文件表空闲项
+    current->close_on_exec &= ~(1 << fd);   //复位close_on_exec
     current->filp[fd] = f;
     f->count++;
     //打开

@@ -68,6 +68,7 @@ typedef struct task_block_t {
     uint16_t umask;         //进程的用户权限
     uint32_t gid;           //用户组id
     uint32_t euid;          //进程用户id
+    uint32_t close_on_exec; //调用exec时候要关闭的文件位图
     struct file_t* filp[NR_OPEN];  //进程文件表
     uint32_t magic;
 } task_block_t;
