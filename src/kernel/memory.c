@@ -8,6 +8,11 @@
 #include <thread.h>
 #include <interrupt.h>
 
+#ifndef likely
+# define likely(x)   __builtin_expect(!!(x), 1)
+# define unlikely(x) __builtin_expect(!!(x), 0)
+#endif
+
 // #define PAGE_SIZE 4096  //4kb
 
 #define MAX_PHYSICAL_MEMORY 32 //支持32MB物理内存
@@ -265,7 +270,13 @@ void kfree(void* ptr) {
     此函数释放逻辑与写时复制有关联, 若改动写时复制逻辑可能需要同步改动此函数
     这里只是减少物理内存数组里的占用, 并不会改动页表和页目录的内容
 */
-void release_memory(task_block_t* task) {
+
+/// @brief  释放任务所占用的内存资源 用于exit()和execve.
+///         此函数释放逻辑与写时复制有关联, 若改动写时复制逻辑可能需要同步改动此函数
+///         这里只是减少物理内存数组里的占用, 并不会改动页表和页目录的内容
+/// @param task 释放的任务
+/// @param preserve_pd 是否保留页目录
+void release_memory(task_block_t* task, bool preserve_pd) {
     assert(task != NULL);
     assert(!get_interrupt_state()); //关中断状态
     //事实上, 我好像并不需要清除资源, 只需要解映射就行了
@@ -290,8 +301,10 @@ void release_memory(task_block_t* task) {
         memory_map[PADDR_TO_INDEX(pgtable_paddr)]--;
     }
     //页目录也释放掉
-    uint32_t pd_paddr = task->pd_addr;
-    memory_map[PADDR_TO_INDEX(pd_paddr)]--; 
+    if (!preserve_pd) {
+        uint32_t pd_paddr = task->pd_addr;
+        memory_map[PADDR_TO_INDEX(pd_paddr)]--; 
+    }
 }
 
 
@@ -311,6 +324,7 @@ void copy_page_table(task_block_t* to) {
         //存在页目录项
         uint32_t *page_table = (uint32_t*)(0xFFC00000 | (i << 12));
         //设置只读, 物理内存引用+1
+        //这里只是设置物理映射
         for (size_t j = 0;j < 1024;j++) {   //遍历页表项
             uint32_t *pte = &page_table[j];
             if (*pte == 0) continue;
@@ -320,6 +334,7 @@ void copy_page_table(task_block_t* to) {
             *pte &= ~(0b10);    //置为只读
             memory_map[PADDR_TO_INDEX(*pte & 0xFFFFF000)]++;
         }
+        //这里开始复制整个页表的内容
         //复制页表
         uint32_t paddr = get_free_page();
         //利用第0页
@@ -327,7 +342,7 @@ void copy_page_table(task_block_t* to) {
         *tmp_page_entry = paddr | 0b111;
         flush_tlb(0);
         memcpy((void*)0, page_table, PAGE_SIZE);
-        if (i == 0) {  //第0个页目录项，即第0个页表
+        if (unlikely(i == 0)) {  //第0个页目录项，即第0个页表
             //则置第0个页表项为0
             *(uint32_t*)0 = 0;
         }
@@ -372,6 +387,26 @@ static void copy_on_write(task_block_t* cur_task, uint32_t vaddr) {
     *pte |= 0b10;   //RW位置1
 }
 
+//给当前进程映射一页地址
+static void get_empty_page(uint32_t vaddr) {
+    uint32_t new_page = get_free_page();
+    //BUG这里先这样写, 因为默认的虚拟地址池只能映射低0x8000000位. 
+    //后续可能考虑去掉这个虚拟地址池, 好像没有什么用
+    if (vaddr < 0x8000000U)
+        link_page(running_task()->vaddr_map, vaddr & 0xFFFFF000, new_page);
+    else {
+        uint32_t *pde = (uint32_t*)PDE_VADDR(vaddr);
+        uint32_t *pte = (uint32_t*)PTE_VADDR(vaddr);
+        //检测页目录项是否存在
+        if (!(*pde & 1)) {
+            uint32_t new_page_table = get_free_page();
+            *pde = new_page_table | 0b111;
+            memset((void*)((uint32_t)pte & 0xFFFFF000), 0, PAGE_SIZE);
+        }
+        *pte = new_page | 0b111;
+    }
+}
+
 // 缺页异常
 void page_fault(uint8_t vector, 
     uint32_t edi, uint32_t esi, uint32_t ebp, uint32_t esp, 
@@ -379,9 +414,12 @@ void page_fault(uint8_t vector,
     uint32_t gs, uint32_t fs, uint32_t es, uint32_t ds, 
     uint32_t error_code
 ) {
-    uint32_t vaddr = get_cr2();
+    uint32_t vaddr = get_cr2() & 0xfffff000;
     task_block_t* task = running_task();
     // assert(vaddr > 0x1000); //不在开头一页
+
+    assert(error_code & 0b11);  //一定是页不存在或者页不可写的错误
+
     if (vaddr <= 0x1000) {
         printk("Try to access 0x%x\n", vaddr);
         panic("");
@@ -392,15 +430,19 @@ void page_fault(uint8_t vector,
         panic("Page fault in kernel page");
     }
 
+
     //页不存在
     if ((error_code & 1) == 0) {
         if (!(vaddr >= USER_STACK_BOTTOM || vaddr <= task->brk)) {
             panic("Page fault out of user range");
         }
         //申请一页
-        uint32_t new_page = get_free_page();
-        link_page(task->vaddr_map, vaddr & 0xFFFFF000, new_page);
-        return;
+        if (!task->exe_file) {
+            get_empty_page(vaddr);
+            return;
+        }
+        //用户执行文件时候不存在页, 下面检查是否是按需加载可执行文件
+        //TODO
     }
     //页不可写
     if ((error_code & 2)) {    

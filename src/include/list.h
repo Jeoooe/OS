@@ -17,10 +17,17 @@ typedef struct list_node_t {
     struct list_node_t *next;
 } list_node_t;
 
+//链表
 typedef struct list_t {
     list_node_t head;
     list_node_t tail;
 } list_t;
+
+//线性数组
+typedef struct array_t {
+    uint32_t length;
+    void *array;
+} array_t;
 
 void list_init(list_t *list);
 
@@ -44,5 +51,6 @@ uint32_t list_size(list_t *list);
 
 //链表插入排序
 void list_insert_sort(list_t *list, list_node_t *node, int offset);
+
 
 #endif

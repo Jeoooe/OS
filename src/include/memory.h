@@ -8,11 +8,13 @@
 #define PAGE_SIZE 0x1000        //页大小
 #define PDIR_BASE 0x100000
 
-#define USER_EXEC_START 0x1000000
-#define USER_STACK_TOP 0x8000000
-#define USER_STACK_SIZE 0x200000
-#define USER_STACK_BOTTOM USER_STACK_TOP - USER_STACK_SIZE
+#define USER_EXEC_START         0x1000000
+#define USER_STACK_TOP          0xC000000   //用户进程栈顶, 实际要减去pcb一页
+#define USER_STACK_REAL_TOP     (USER_STACK_TOP - PAGE_SIZE)
+#define USER_STACK_SIZE         0x200000
+#define USER_STACK_BOTTOM USER_STACK_REAL_TOP - USER_STACK_SIZE
 #define USER_BRK_INIT USER_EXEC_START + 0x200000
+#define PAGE_DIRECTORY_VADDR    0xFFFFF000
 
 
 typedef struct memory_block_desc_t {
@@ -52,7 +54,7 @@ void free_kpages(uint32_t vaddr, uint32_t cnt);
 // uint32_t addr_v2p(uint32_t vaddr);
 
 //内存块描述符初始化
-void block_desc_init(memory_block_desc_t* desc_array);
+// void block_desc_init(memory_block_desc_t* desc_array);
 
 
 /* 系统调用 */

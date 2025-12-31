@@ -13,6 +13,7 @@
 #define SYS_WAITPID      7
 #define SYS_CREAT        8
 #define SYS_UNLINK       10
+#define SYS_EXECVE       11
 #define SYS_MKNOD        14
 #define SYS_GETPID       20
 #define SYS_MKDIR        39
@@ -112,5 +113,13 @@ int unlink(const char *name);
 /// @param fn 句柄
 /// @return 原句柄
 void (*signal(int sig, void (*fn)(int)))(int);
+
+
+/// @brief 在本进程运行可执行文件, 完全替换本进程内容
+/// @param filename 文件路径
+/// @param argv 传递参数
+/// @param envp 环境变量
+/// @return 成功不返回, 出错返回-1
+int execve(const char *filename, char *const argv[], char *const envp[]);
 
 #endif

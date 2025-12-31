@@ -55,16 +55,20 @@ typedef struct task_block_t {
     uint8_t priority;
     uint8_t ticks;
     uint32_t jiffies;
+
+    //内存管理
     uint32_t brk;
     list_node_t node;
     uint32_t pd_addr;       //进程的页表地址
     bitmap_t *vaddr_map;    //进程虚拟地址池
+    array_t exec_phdr_list;  //执行文件的程序头表
     //信号机制
     struct signal_table_t signals;
 
     //文件系统
     struct inode_t* pwd;    //进程工作目录
     struct inode_t* root;   //进程的根目录, 即"/"对应的inode
+    struct inode_t* exe_file;   //正在执行的可执行文件
     uint16_t umask;         //进程的用户权限
     uint32_t gid;           //用户组id
     uint32_t euid;          //进程用户id

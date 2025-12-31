@@ -263,7 +263,7 @@ int sys_fork() {
     child->uid = UID_USER;
     child->pid = pid;
     child->ppid = cur->pid;
-    child->status = TASK_READY;
+    
     child->ticks = child->priority;
 
     //子进程内核栈
@@ -290,9 +290,17 @@ int sys_fork() {
     //复制页目录及页表
     copy_page_table(child);
 
+    //文件系统
+    if (cur->root) cur->root->count++;
+    if (cur->pwd) cur->pwd->count++;
+    if (cur->exe_file) cur->exe_file->count++;
+    for (int i = 0;i < NR_OPEN; i++) {
+        if (cur->filp[i]) cur->filp[i]->count++;
+    }
+
     //重置一下页表
     set_cr3(cur->pd_addr);
-
+    child->status = TASK_READY;
     
     return pid;
 }

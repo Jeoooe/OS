@@ -43,6 +43,7 @@ void sys_setup() {
 #include <thread.h>
 #include <device/dev.h>
 
-static void test() {
+char buf[1024] = {0};
 
+static void test() {
 }

@@ -15,4 +15,4 @@ _start:
 
 segment .data
 hello:
-    dd "Hello", 10, 0
+    db "Hello", 10, 0

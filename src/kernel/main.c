@@ -72,9 +72,14 @@ void init() {
     (void) dup(0);                          //stdout
     (void) dup(0);                          //stderr
 
-    while (1) {
-        char a = getch();
-        putch(a);
+    int pid = fork();
+    if (pid) { //父进程
+        int status;
+        int err = waitpid(pid, &status, 0);
+        putch((char)status);
+    } else {
+        exit(1);
+        execve("hello", NULL, NULL);
     }
     while (1)
         ;

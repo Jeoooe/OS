@@ -7,7 +7,7 @@
 
 extern task_block_t* all_threads[]; //from thread.c
 
-extern void release_memory(task_block_t* task);     //from memory.c
+extern void release_memory(task_block_t* task, bool preserve_pd);     //from memory.c
 extern task_block_t* get_task_by_pid(pid_t pid);    //from thread.c
 extern size_t get_index_by_pid(pid_t pid);   //from thread.c
 
@@ -35,15 +35,12 @@ static void tell_father(int pid) {
     panic("[tell father]: No father found");
 }
 
-//TODO 关闭文件, 发送信号
 [[noreturn]]void do_exit(int error_code) {
     assert(!get_interrupt_state());
     task_block_t* cur_task = running_task();
-
-    
     
     //清内存
-    release_memory(cur_task);
+    release_memory(cur_task, false);
 
     task_block_t* parent = get_task_by_pid(cur_task->ppid);
     //把子进程挂在父进程下
@@ -56,9 +53,9 @@ static void tell_father(int pid) {
     }
 
     //通知父进程
-    if (parent->status == TASK_WAITING) {
-        task_unblock(parent);
-    }
+    // if (parent->status == TASK_WAITING) {
+    //     task_unblock(parent);
+    // }
 
     //关闭所有文件
     for (int i = 0;i < NR_OPEN; i++) {
@@ -77,6 +74,7 @@ static void tell_father(int pid) {
     schedule();
 
     panic("This place should be unreachable!");
+    while(1) ;
 }
 
 [[noreturn]] void sys_exit(int error_code)  {

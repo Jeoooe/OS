@@ -3,6 +3,6 @@
 
 global fork
 fork:
-    mov eax, 57
+    mov eax, 2
     int 0x80 
     ret

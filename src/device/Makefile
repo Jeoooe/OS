@@ -37,10 +37,9 @@ $(BUILD)/device.o: $(OBJS)
 .PHONY: clear
 clear: 
 	rm -r $(BUILD)/*
-
 dep:
 	sed '/\#\#\# Dependencies/q' < Makefile > tmp_make
-	(for i in *.c;do $(CPP) -M $$i;done) >> tmp_make
+	(for i in *.c;do $(CPP) -M $$i | sed 's|^\(.*\)\.o:|../../build/device/\1.o:|';done) >> tmp_make
 	cp tmp_make Makefile
 
 ### Dependencies

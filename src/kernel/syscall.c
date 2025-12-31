@@ -72,6 +72,8 @@ extern int sys_dup2(unsigned int oldfd, unsigned int newfd);//from fcntl.c
 extern int sys_unlink(const char *name);                    //from namei.c
 
 extern void (*sys_signal(int sig, void (*fn)(int)))(int);       //from signal.c
+extern int sys_execve(const char *filename, char *const argv[], char *const envp[]); //from exec.c
+
 
 pid_t sys_getpid();
 pid_t sys_getppid();
@@ -97,6 +99,7 @@ void syscall_init() {
     syscall_table[SYS_DUP2] = sys_dup2;
     syscall_table[SYS_UNLINK] = sys_unlink;
     syscall_table[SYS_SIGNAL] = sys_signal;
+    syscall_table[SYS_EXECVE] = sys_execve;
 }
 
 pid_t sys_getpid() {
@@ -182,5 +185,16 @@ int unlink(const char *name) {
 }
 
 void (*signal(int sig, void (*fn)(int)))(int) {
-    return _syscall2(SYS_SIGNAL, sig, fn);
+    void (*res)(int);
+    asm volatile(                   
+        "int $0x80\n"                
+        :"=a"(res)               
+        :"a"(SYS_SIGNAL),"b"(sig),"c"(fn)              
+        :"memory"                   
+    );   
+    return res;
+}
+
+int execve(const char *filename, char *const argv[], char *const envp[]) {
+    return _syscall3(SYS_EXECVE, filename, argv, envp);
 }

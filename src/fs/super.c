@@ -246,6 +246,15 @@ void mount_root(dev_t dev) {
     sys_mkdir("/bin", 0777);
 }
 
+/// @brief 安装文件系统的系统调用
+/// @param dev_name 设备文件名
+/// @param dir_name 安装到的目录名
+/// @param rw_flag 读写标志
+/// @return 0或出错码
+int sys_mount(char *dev_name, char *dir_name, int rw_flag) {
+
+}
+
 extern void fs_inode_init();
 void root_setup() {
     //需要初始化inode_table

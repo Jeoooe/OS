@@ -23,7 +23,7 @@
 #define BLOCK_SIZE 1024         //逻辑块大小
 
 #define MAX_INODE_COUNT 8192    //文件系统中最大node数 好像也没用
-#define MAX_FILE_NAME_LEN 30
+#define MAX_FILE_NAME_LEN 14
 
 #define INODE_MAP_SIZE 1
 #define ZONE_MAP_SIZE 8     //逻辑块位图占据逻辑块数, 硬盘大小上限
@@ -96,7 +96,7 @@ typedef struct d_inode_t {
     uint16_t zones[9];
 } d_inode_t;
 
-/* 目录项 应该刚好是32字节*/
+/* 目录项 应该刚好是16字节*/
 typedef struct dir_entry_t {
     char filename[MAX_FILE_NAME_LEN];
     uint16_t i_no;  //指向的文件的inode

@@ -6,7 +6,6 @@
 #include <assert.h>
 
 //打开或创建文件的系统调用
-//仅初步实现, 可以打开普通文件
 int sys_open(const char* filename, int flag, int mode) {
     inode_t* inode;
     file_t* f;
