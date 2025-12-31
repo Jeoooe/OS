@@ -60,6 +60,13 @@ typedef struct Elf32_Ehdr{
 #define PT_LOAD     1
 #define PT_DYNAMIC  2
 
+//p_flags
+#define PF_X		(1 << 0)	/* Segment is executable */
+#define PF_W		(1 << 1)	/* Segment is writable */
+#define PF_R		(1 << 2)	/* Segment is readable */
+#define PF_MASKOS	0x0ff00000	/* OS-specific */
+#define PF_MASKPROC	0xf0000000	/* Processor-specific */
+
 //程序头表  Program Header Table
 typedef struct Elf32_Phdr {
 	Elf32_Word p_type;      //当前段类型

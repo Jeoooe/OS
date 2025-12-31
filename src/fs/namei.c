@@ -21,6 +21,14 @@
 #define MAY_WRITE 2
 #define MAY_READ 4
 
+//检验de的文件名和name是否一致
+//一致返回1, 否则0
+static int match(int len, const char *name, dir_entry_t *de) {
+    if (!de || !de->i_no || len > MAX_FILE_NAME_LEN) {
+        return 0;
+    }
+    return strncmp(name, de->filename, len) == 0;
+}
 
 //检查文件访问权限
 static bool permission(inode_t* inode, int mask) {
@@ -105,7 +113,7 @@ static buffer_t* find_entry(inode_t** dir, const char* name, int namelen, dir_en
             }
             de = (dir_entry_t*)bh->data;
         }
-        if (strncmp(name, de->filename, namelen) == 0) {   //名字相同
+        if (match(namelen, name, de)) {   //名字相同
             *res_dir = de;
             return bh;
         }

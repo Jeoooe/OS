@@ -42,8 +42,22 @@ void sys_setup() {
 #include <syscall.h>
 #include <thread.h>
 #include <device/dev.h>
+#include <console.h>
 
 char buf[1024] = {0};
 
 static void test() {
+    // unlink("hello");
+    // unsigned int fd = open("hello", O_CREAT | O_WRONLY, 0777);
+    // write(fd, buf, 1024);
+    // write(fd, buf, 1024);
+    // write(fd, buf, 1024);
+    // write(fd, buf, 1024);
+    // write(fd, buf, 1024);
+    // write(fd, buf, 1024);
+    // write(fd, buf, 1024);
+    // write(fd, buf, 1024);
+    // close(fd);
+    // sync_dev(device_find(DEV_IDE_PART, 0)->dev);
+    console_init();
 }

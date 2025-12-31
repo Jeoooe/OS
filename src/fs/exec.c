@@ -14,15 +14,13 @@
 # define unlikely(x) __builtin_expect(!!(x), 0)
 #endif
 
-#define THREAD_STACK_PAGE_BYTE \
-(((USER_STACK_TOP - PAGE_SIZE) >> 20) & 0xFFC)
-
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 extern int sys_close(uint32_t fd);
 extern inode_t* namei(const char* pathname);
 extern void get_empty_page(uint32_t vaddr);         //memory.c
 extern void release_memory(task_block_t* task, bool preserve_pd);
+extern void free_page_directory();
 
 static void print_phdr(Elf32_Phdr *phdr) {
     LOGK("Type:       %d", phdr->p_type);
@@ -166,23 +164,21 @@ static void setup_thread(uint32_t entry) {
     intr_frame->eflags |= 0x200;    //开启中断
     //用户栈寄存器esp不在这里设置
     
-    //设置brk
-
-    //找到虚拟地址最大的段
+    //设置brk 为虚拟地址最大的段的末尾
     cur->brk = 0;
     Elf32_Phdr *p = (Elf32_Phdr *)cur->exec_phdr_list.array;
     for (int i = 0;i < cur->exec_phdr_list.length;i++) {
         cur->brk = MAX(p->p_vaddr + p->p_memsz, cur->brk);
+        p++;
     }
+    cur->brk = (cur->brk + PAGE_SIZE - 1) & 0xFFFFF000; //页对齐
 
     //清除内存页面
     release_memory(cur, true);
-    //清除页目录
-    //但保留进程栈和页目录自己
-    //TODO不会搞, 再研究
-    memset((void *)PAGE_DIRECTORY_VADDR, 0, THREAD_STACK_PAGE_BYTE);
-    memset((void *)PAGE_DIRECTORY_VADDR + THREAD_STACK_PAGE_BYTE + 4, 0, PAGE_SIZE - 8 - THREAD_STACK_PAGE_BYTE);
-    set_cr3(cur->pd_addr);  //刷新一下页目录
+    //清除用户部分的页目录
+    //但保留内核内存的页目录
+    free_page_directory();
+    //内核内存的页目录保留, 这里的函数都在进程栈里面, 不会受到影响, 可以放心清除.
 }
 
 //设置用户栈, 即入口传参
@@ -191,6 +187,7 @@ static void set_user_stack(int argc, char *const argv[], char *const envp[]) {
     interrupt_stack_t *intr_frame = (interrupt_stack_t *)((void *)cur + PAGE_SIZE - sizeof(interrupt_stack_t));
     void *stack = (uint32_t *)(USER_STACK_REAL_TOP);
     stack -= 12;
+    //设置入口栈顶, 应该有三个参数 argc, argv, envp
     intr_frame->esp = (uint32_t)stack;
 }
 
@@ -210,9 +207,13 @@ int sys_execve(const char *filename, char *const argv[], char *const envp[]) {
     }
     if (read_elf(inode, &entry) != 0) goto rollback0;
     //已经加载完程序头了
-    //下面要开始设置用户栈信息
+    //修改进程信息
+    running_task()->exe_file = inode;
     setup_thread(entry);
+    //设置用户栈
     set_user_stack(0, argv, envp);
+    //结束, iret会跳转到程序入口地址
+    //后续交给缺页异常按需加载
     return 0;
 
 rollback0:

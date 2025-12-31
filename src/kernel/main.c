@@ -76,9 +76,8 @@ void init() {
     if (pid) { //父进程
         int status;
         int err = waitpid(pid, &status, 0);
-        putch((char)status);
+        // putch((char)status);
     } else {
-        exit(1);
         execve("hello", NULL, NULL);
     }
     while (1)

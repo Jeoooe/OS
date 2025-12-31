@@ -42,7 +42,7 @@ static void tell_father(int pid) {
     //清内存
     release_memory(cur_task, false);
 
-    task_block_t* parent = get_task_by_pid(cur_task->ppid);
+    // task_block_t* parent = get_task_by_pid(cur_task->ppid);
     //把子进程挂在父进程下
     for (size_t i = 1;i < MAX_THREAD_COUNT;i++) {
         task_block_t* task = all_threads[i];
@@ -52,11 +52,6 @@ static void tell_father(int pid) {
         }
     }
 
-    //通知父进程
-    // if (parent->status == TASK_WAITING) {
-    //     task_unblock(parent);
-    // }
-
     //关闭所有文件
     for (int i = 0;i < NR_OPEN; i++) {
         if (cur_task->filp[i]) sys_close(i);
@@ -65,6 +60,8 @@ static void tell_father(int pid) {
     cur_task->pwd = NULL;
     iput(cur_task->root);
     cur_task->root = NULL;
+
+    //TODO 释放exefile的LOAD程序头表
 
     //设置该进程状态
     cur_task->error_code = error_code;

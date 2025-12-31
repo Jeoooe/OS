@@ -7,11 +7,14 @@
 #include <assert.h>
 #include <thread.h>
 #include <interrupt.h>
+#include <fs/elf.h>
 
 #ifndef likely
 # define likely(x)   __builtin_expect(!!(x), 1)
 # define unlikely(x) __builtin_expect(!!(x), 0)
 #endif
+
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 // #define PAGE_SIZE 4096  //4kb
 
@@ -33,7 +36,9 @@
 
 //虚拟内存相关
 //内核虚拟内存 128MB 刚好一页
-#define VADDR_SIZE 0x1000             //虚拟内存位图字节数, 映射4GB
+#define KERNEL_TOP 0x8000000
+#define KERNEL_SHARED_PDE (KERNEL_TOP / 1024 / 4096)    //内核虚拟地址的最后一个页目录项
+#define VADDR_SIZE 0x1000             
 #define VADDR_MAP_BASE (0x9F000 - VADDR_SIZE)
 #define VADDR_START 0x100000
 
@@ -60,6 +65,7 @@ uint32_t max_physical_memory_size;
 #define flush_tlb(vaddr) asm volatile("invlpg (%0)"::"r"(vaddr):"memory")
 
 //空闲页
+//我想, 这里应该改为给内核分配物理页
 static uint32_t get_free_page() {
     //此函数可能有bug
     register uint32_t res = 0;
@@ -282,18 +288,17 @@ void release_memory(task_block_t* task, bool preserve_pd) {
     //事实上, 我好像并不需要清除资源, 只需要解映射就行了
 
     uint32_t *pd = (uint32_t*)0xFFFFF000;
-    for (size_t i = 0;i < 1023;i++) {   //遍历页目录项
+    //只解除高于KERNEL_TOP的内存映射. 内核虚拟空间内的地址不需要释放
+    for (int i = KERNEL_SHARED_PDE;i < 1023;i++) {   //遍历页目录项
         uint32_t *pde = &pd[i];
         if (!(*pde & 1))  //页目录项不存在
             continue;      
         uint32_t *pgtable = INDEX_TO_PGTABLE(i);
-        for (size_t j = 0;j < 1024;j++) {   //遍历页表项
+        for (int j = 0;j < 1024;j++) {   //遍历页表项
             uint32_t *pte = &pgtable[j];
             if (!(*pte & 1))    //页表项不存在 
                 continue;
             uint32_t paddr = *pte & 0xFFFFF000;   //页框
-            if (paddr < LOW_1M) 
-                continue;  //小于1M的内核空间不做处理
             uint32_t mem_index = PADDR_TO_INDEX(paddr);
             memory_map[mem_index]--;
         }
@@ -318,19 +323,21 @@ void copy_page_table(task_block_t* to) {
     //设置最后一项为自己
     uint32_t paddr = vaddr_to_paddr((uint32_t)new_page_dir);
     new_page_dir[1023] = paddr | 0b111;
-    for (size_t i = 0;i < 1023;i++) {   //遍历页目录项
+    //在内核虚拟地址范围内不共享
+    //即 [0, KERNEL_TOP]
+    //刚好是 KERNEL_SHARED_PDE 内
+    //改完之后可能存在问题, 即0x0地址可能会存在?
+    memcpy(new_page_dir, cur_page_dir, KERNEL_SHARED_PDE * 4);  //复制内核虚拟地址的页目录项
+    for (int i = KERNEL_SHARED_PDE;i < 1023;i++) {   //遍历页目录项
         uint32_t* pde = &cur_page_dir[i];
         if (*pde == 0) continue;
         //存在页目录项
         uint32_t *page_table = (uint32_t*)(0xFFC00000 | (i << 12));
         //设置只读, 物理内存引用+1
         //这里只是设置物理映射
-        for (size_t j = 0;j < 1024;j++) {   //遍历页表项
+        for (int j = 0;j < 1024;j++) {   //遍历页表项
             uint32_t *pte = &page_table[j];
             if (*pte == 0) continue;
-            //页表存在
-            //低1M不用共享
-            if ((*pte >> 12) < 256) continue;
             *pte &= ~(0b10);    //置为只读
             memory_map[PADDR_TO_INDEX(*pte & 0xFFFFF000)]++;
         }
@@ -342,10 +349,6 @@ void copy_page_table(task_block_t* to) {
         *tmp_page_entry = paddr | 0b111;
         flush_tlb(0);
         memcpy((void*)0, page_table, PAGE_SIZE);
-        if (unlikely(i == 0)) {  //第0个页目录项，即第0个页表
-            //则置第0个页表项为0
-            *(uint32_t*)0 = 0;
-        }
         *tmp_page_entry = 0;
         flush_tlb(0);
         //设置页目录项
@@ -387,13 +390,15 @@ static void copy_on_write(task_block_t* cur_task, uint32_t vaddr) {
     *pte |= 0b10;   //RW位置1
 }
 
-//给当前进程映射一页地址
-static void get_empty_page(uint32_t vaddr) {
+//给当前进程 指定虚拟地址 映射一个物理页
+void get_empty_page(uint32_t vaddr) {
     uint32_t new_page = get_free_page();
-    //BUG这里先这样写, 因为默认的虚拟地址池只能映射低0x8000000位. 
+    //这里先这样写, 因为默认的虚拟地址池只能映射低0x8000000位. 
     //后续可能考虑去掉这个虚拟地址池, 好像没有什么用
-    if (vaddr < 0x8000000U)
-        link_page(running_task()->vaddr_map, vaddr & 0xFFFFF000, new_page);
+    //25.12.31 还是有用的, 刚好是内核专用虚拟地址的映射
+    if (vaddr < KERNEL_TOP)
+        // link_page(running_task()->vaddr_map, vaddr & 0xFFFFF000, new_page);
+        link_page(&kernel_vaddr_map, vaddr & 0xFFFFF000, new_page);
     else {
         uint32_t *pde = (uint32_t*)PDE_VADDR(vaddr);
         uint32_t *pte = (uint32_t*)PTE_VADDR(vaddr);
@@ -407,6 +412,77 @@ static void get_empty_page(uint32_t vaddr) {
     }
 }
 
+/// @brief 清除当前进程页目录 (只清除用户内存)
+void free_page_directory() {
+    memset((void *)PAGE_DIRECTORY_VADDR + KERNEL_SHARED_PDE, 
+    0, PAGE_SIZE - KERNEL_SHARED_PDE * 4);
+}
+
+
+/*
+    以下是按需加载部分
+*/
+
+//按需加载的部分, 如果出错可能要exit之类的
+
+
+/// @brief 按需加载vaddr地址的程序段, 会检查是否合法
+/// 
+///  在`page_fault()`调用
+/// @param vaddr 加载地址
+void load_segment(uint32_t vaddr) {
+    task_block_t *cur = running_task();
+    Elf32_Phdr *phdr_array = (Elf32_Phdr *)cur->exec_phdr_list.array, *p;
+    uint32_t i = 0;
+    for (;i < cur->exec_phdr_list.length;i++) {
+        p = &phdr_array[i];
+        if (p->p_vaddr <= vaddr && vaddr < p->p_vaddr + p->p_memsz)
+        break;
+    }
+    if (i == cur->exec_phdr_list.length) return;
+    assert(p->p_align == PAGE_SIZE);   //这里要求加载段必须是页对齐
+    vaddr &= 0xFFFFF000;    //页对齐
+    //下面加载程序
+    //这里计算要加载多少块. 一次性最多加载一页
+    i = vaddr - p->p_vaddr;
+    //计算要从文件里读取多少字节
+    uint32_t bytes = i > p->p_filesz ? 0 : p->p_filesz - i;
+    i = vaddr;  //保存本页开始位置
+    get_empty_page(vaddr);
+    while (bytes && vaddr - i < PAGE_SIZE) {
+        //这里是计算vaddr位置对应文件中的偏移
+        uint32_t block = (vaddr - p->p_vaddr + p->p_offset) / BLOCK_SIZE;
+        block = get_block(cur->exe_file, block);
+        assert(block);
+        buffer_t *bh = bread(cur->exe_file->dev, block);
+        assert(bh);
+        //假如bytes不足一个块
+        if (bytes < BLOCK_SIZE) {
+            memcpy((void *)vaddr, bh->data, bytes);
+            vaddr += bytes;
+            bytes = 0;
+            brelse(bh);
+            break;
+        } else {
+            //bytes超过一个块
+            memcpy((void *)vaddr, bh->data, BLOCK_SIZE);
+        }
+        vaddr += BLOCK_SIZE;
+        bytes -= BLOCK_SIZE;
+        brelse(bh);
+    }
+    //然后判断是否还需要填0, 因为内存大小可能大于文件大小
+    if (vaddr - i < PAGE_SIZE && p->p_memsz > vaddr - p->p_vaddr) {
+        memset((void *)vaddr, 0, p->p_memsz - (vaddr - p->p_vaddr));
+    }
+
+    //这里要判断flag, 设置页表项
+    //主要是设置读写位
+    uint32_t *pte = (uint32_t *)PTE_VADDR(i);
+    if (p->p_flags & PF_W) *pte |= 0b10;    //可写
+    else *pte &= ~0b10;                     //只读
+} 
+
 // 缺页异常
 void page_fault(uint8_t vector, 
     uint32_t edi, uint32_t esi, uint32_t ebp, uint32_t esp, 
@@ -417,8 +493,6 @@ void page_fault(uint8_t vector,
     uint32_t vaddr = get_cr2() & 0xfffff000;
     task_block_t* task = running_task();
     // assert(vaddr > 0x1000); //不在开头一页
-
-    assert(error_code & 0b11);  //一定是页不存在或者页不可写的错误
 
     if (vaddr <= 0x1000) {
         printk("Try to access 0x%x\n", vaddr);
@@ -441,11 +515,14 @@ void page_fault(uint8_t vector,
             get_empty_page(vaddr);
             return;
         }
-        //用户执行文件时候不存在页, 下面检查是否是按需加载可执行文件
+        //用户执行文件时候不存在页, 下面进行按需加载
         //TODO
+        load_segment(vaddr);
     }
-    //页不可写
+
+    //写访问异常
     if ((error_code & 2)) {    
+        //TODO 确实是只读页而非共享页, 因为可执行文件存在只读段, 比如.text
         //写时复制
         copy_on_write(task, vaddr);
         return;
