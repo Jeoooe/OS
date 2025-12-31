@@ -58,6 +58,7 @@ typedef struct task_block_t {
 
     //内存管理
     uint32_t brk;
+    uint32_t heap_bottom;   //堆内存底端
     list_node_t node;
     uint32_t pd_addr;       //进程的页表地址
     bitmap_t *vaddr_map;    //进程虚拟地址池

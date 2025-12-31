@@ -55,7 +55,7 @@ void* syscall_table[syscall_nr];
 
 extern void sys_setup();    //from setup.c
 extern int sys_fork();  //from thread.c
-extern void sys_exit(int error_code); //from exit.c
+extern void sys_exit(int error_code) __attribute__((noreturn)); //from exit.c
 extern pid_t sys_waitpid(pid_t pid,int *status, int options);   //from exit.c
 extern uint16_t sys_umask(uint16_t mask);   //from system.c
 extern int sys_open(const char* filename, int flag, int mode); //from open.c

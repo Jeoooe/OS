@@ -3,8 +3,9 @@
 #include <debug.h>
 #include <assert.h>
 #include <signal.h>
+#include <fs/elf.h>
 
-
+extern bitmap_t kernel_vaddr_map;
 extern task_block_t* all_threads[]; //from thread.c
 
 extern void release_memory(task_block_t* task, bool preserve_pd);     //from memory.c
@@ -28,14 +29,14 @@ static void tell_father(int pid) {
         for (int i = 0;i < MAX_THREAD_COUNT;i++) {
             if (!all_threads[i]) continue;
             if (all_threads[i]->pid != pid) continue;
-            all_threads[i]->signals.pending |= (1 << (SIGCHLD - 1));
+            send_sig(SIGCHLD, all_threads[i]);
             return;
         }
     }
     panic("[tell father]: No father found");
 }
 
-[[noreturn]]void do_exit(int error_code) {
+[[noreturn]] void do_exit(int error_code) {
     assert(!get_interrupt_state());
     task_block_t* cur_task = running_task();
     
@@ -61,7 +62,15 @@ static void tell_father(int pid) {
     iput(cur_task->root);
     cur_task->root = NULL;
 
-    //TODO 释放exefile的LOAD程序头表
+    //释放exefile的LOAD程序头表 和 exefile本身
+    if (cur_task->exe_file) iput(cur_task->exe_file);
+    cur_task->exe_file = NULL;
+    //修了半天, 原来是一次性申请的大数组
+    kfree((void *)cur_task->exec_phdr_list.array);
+
+    //释放vaddrmap
+    if (cur_task->vaddr_map != &kernel_vaddr_map) 
+        kfree(cur_task->vaddr_map);
 
     //设置该进程状态
     cur_task->error_code = error_code;
@@ -74,11 +83,11 @@ static void tell_father(int pid) {
     while(1) ;
 }
 
-[[noreturn]] void sys_exit(int error_code)  {
+void sys_exit(int error_code) {
     do_exit((error_code & 0xff) << 8);
 }
 
-pid_t sys_waitpid(pid_t pid, int *status, [[unused]] int options) {
+pid_t sys_waitpid(pid_t pid, int *status, int options __attribute__((unused))) {
     task_block_t* cur_task = running_task();
     task_block_t* child;
 

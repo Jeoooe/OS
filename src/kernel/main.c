@@ -76,10 +76,15 @@ void init() {
     if (pid) { //父进程
         int status;
         int err = waitpid(pid, &status, 0);
-        // putch((char)status);
+        err+= 1;
+        // goto aa;
+        // putch('H');
     } else {
         execve("hello", NULL, NULL);
     }
-    while (1)
-        ;
+aa:
+    int a = 0;
+    while (1) {
+        a++;
+    }
 }

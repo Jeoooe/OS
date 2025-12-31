@@ -412,7 +412,7 @@ void get_empty_page(uint32_t vaddr) {
     }
 }
 
-/// @brief 清除当前进程页目录 (只清除用户内存)
+/// @brief 清除当前进程页目录 (只清除用户内存) 给execve用
 void free_page_directory() {
     memset((void *)PAGE_DIRECTORY_VADDR + KERNEL_SHARED_PDE, 
     0, PAGE_SIZE - KERNEL_SHARED_PDE * 4);
@@ -424,22 +424,26 @@ void free_page_directory() {
 */
 
 //按需加载的部分, 如果出错可能要exit之类的
+//查了一下应该是发送信号, 一般是段错误 seg fault
 
 
 /// @brief 按需加载vaddr地址的程序段, 会检查是否合法
 /// 
 ///  在`page_fault()`调用
 /// @param vaddr 加载地址
-void load_segment(uint32_t vaddr) {
-    task_block_t *cur = running_task();
-    Elf32_Phdr *phdr_array = (Elf32_Phdr *)cur->exec_phdr_list.array, *p;
+/// @param task 进程
+static void load_segment(uint32_t vaddr, task_block_t *task) {
+    Elf32_Phdr *phdr_array = (Elf32_Phdr *)task->exec_phdr_list.array, *p;
     uint32_t i = 0;
-    for (;i < cur->exec_phdr_list.length;i++) {
+    for (;i < task->exec_phdr_list.length;i++) {
         p = &phdr_array[i];
         if (p->p_vaddr <= vaddr && vaddr < p->p_vaddr + p->p_memsz)
         break;
     }
-    if (i == cur->exec_phdr_list.length) return;
+    if (i == task->exec_phdr_list.length) {
+        //这里是没有对应的段, 那么就段错误
+        send_sig(SIGSEGV, task);
+    }
     assert(p->p_align == PAGE_SIZE);   //这里要求加载段必须是页对齐
     vaddr &= 0xFFFFF000;    //页对齐
     //下面加载程序
@@ -452,9 +456,9 @@ void load_segment(uint32_t vaddr) {
     while (bytes && vaddr - i < PAGE_SIZE) {
         //这里是计算vaddr位置对应文件中的偏移
         uint32_t block = (vaddr - p->p_vaddr + p->p_offset) / BLOCK_SIZE;
-        block = get_block(cur->exe_file, block);
+        block = get_block(task->exe_file, block);
         assert(block);
-        buffer_t *bh = bread(cur->exe_file->dev, block);
+        buffer_t *bh = bread(task->exe_file->dev, block);
         assert(bh);
         //假如bytes不足一个块
         if (bytes < BLOCK_SIZE) {
@@ -483,6 +487,17 @@ void load_segment(uint32_t vaddr) {
     else *pte &= ~0b10;                     //只读
 } 
 
+static bool check_can_write(uint32_t vaddr, task_block_t *task) {
+    Elf32_Phdr *phdr_array = (Elf32_Phdr *)task->exec_phdr_list.array;
+    for (int i = 0;i < task->exec_phdr_list.length;i++) {
+        Elf32_Phdr *p = &phdr_array[i];
+        if (p->p_vaddr <= vaddr && vaddr < p->p_vaddr + p->p_memsz) {
+            return p->p_flags & PF_W;
+        }
+    }
+    return true;
+}
+
 // 缺页异常
 void page_fault(uint8_t vector, 
     uint32_t edi, uint32_t esi, uint32_t ebp, uint32_t esp, 
@@ -507,24 +522,33 @@ void page_fault(uint8_t vector,
 
     //页不存在
     if ((error_code & 1) == 0) {
-        if (!(vaddr >= USER_STACK_BOTTOM || vaddr <= task->brk)) {
+        // if (!(vaddr >= USER_STACK_BOTTOM || vaddr <= task->brk)) {
+        if (vaddr >= USER_STACK_TOP) {
             panic("Page fault out of user range");
         }
         //申请一页
-        if (!task->exe_file) {
+        //这里有可能是在申请堆内存 
+        //那么如果在brk之下, heap之上就是申请堆内存. 应该对吧?
+        //TODO可能需要补编译原理
+        if (!task->exe_file || (vaddr >= task->heap_bottom && vaddr < task->brk)) {
             get_empty_page(vaddr);
             return;
         }
         //用户执行文件时候不存在页, 下面进行按需加载
-        //TODO
-        load_segment(vaddr);
+        load_segment(vaddr, task);
     }
 
     //写访问异常
     if ((error_code & 2)) {    
-        //TODO 确实是只读页而非共享页, 因为可执行文件存在只读段, 比如.text
-        //写时复制
-        copy_on_write(task, vaddr);
+        //确实是只读页而非共享页, 因为可执行文件存在只读段, 比如.text .rodata 
+        //检查是否是只读段
+        if (!task->exe_file || check_can_write(vaddr, task)) {
+            //写时复制
+            copy_on_write(task, vaddr);
+        } else {
+            //执行程序又是只读段, 那就是段错误
+            send_sig(SIGSEGV, task);
+        }
         return;
     }
 }

@@ -26,7 +26,7 @@ typedef struct list_t {
 //线性数组
 typedef struct array_t {
     uint32_t length;
-    void *array;
+    char *array;
 } array_t;
 
 void list_init(list_t *list);

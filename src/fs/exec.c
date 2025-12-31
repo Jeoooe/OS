@@ -71,18 +71,6 @@ static int read_elf(inode_t *inode, uint32_t *entry) {
 
     //到这里就是本系统可以处理的elf文件
 
-    LOGK("Elf read:\ne_type: %d\ne_machine: %d", elf_header->e_type, elf_header->e_machine);
-    LOGK("e_entry: 0x%x", elf_header->e_entry);
-    LOGK("e_phoff: 0x%x", elf_header->e_phoff);
-    LOGK("e_shoff: 0x%x", elf_header->e_shoff);
-    LOGK("e_flags: 0x%x", elf_header->e_flags);
-    LOGK("e_ehsize: 0x%x", elf_header->e_ehsize);
-    LOGK("e_phentsize: 0x%x", elf_header->e_phentsize);
-    LOGK("e_phnum: %d", elf_header->e_phnum);
-    LOGK("she_entsize: 0x%x", elf_header->e_shentsize);
-    LOGK("e_shnum: %d", elf_header->e_shnum);
-    LOGK("e_strndx: 0x%x\n", elf_header->e_shstrndx);
-
     //加载程序头表
     cur = running_task();
     uint32_t block_offset = elf_header->e_phoff % BLOCK_SIZE;
@@ -107,7 +95,6 @@ static int read_elf(inode_t *inode, uint32_t *entry) {
         Elf32_Phdr *phdr = (Elf32_Phdr *)(bh->data + block_offset);
         if (phdr->p_type == PT_LOAD) {
             phdr_array[i++] = *phdr;
-            print_phdr(phdr);
         }
         block_offset += sizeof(Elf32_Phdr);
         //下面边界情况一般很少可能发生
@@ -119,24 +106,24 @@ static int read_elf(inode_t *inode, uint32_t *entry) {
                 //如果是两个块交界处
                 memcpy(phdr_array, bh->data + BLOCK_SIZE - sizeof(Elf32_Phdr) + block_offset, sizeof(Elf32_Phdr) - block_offset);
                 brelse(bh);
-                int i;
-                if (!(i = get_block(inode, block))) return -1;
-                if (!(bh = bread(inode->dev, i))) goto rollback1;
+                int j;
+                if (!(j = get_block(inode, block))) return -1;
+                if (!(bh = bread(inode->dev, j))) goto rollback1;
                 memcpy(phdr_array + sizeof(Elf32_Phdr) - block_offset, bh->data, block_offset);
                 phdr_array++;
             } else {
                 *phdr_array++ = *(Elf32_Phdr *)(bh->data - sizeof(Elf32_Phdr));
                 brelse(bh);
-                int i;
-                if (!(i = get_block(inode, block))) return -1;
-                if (!(bh = bread(inode->dev, i))) goto rollback1;
+                int j;
+                if (!(j = get_block(inode, block))) return -1;
+                if (!(bh = bread(inode->dev, j))) goto rollback1;
             }
             phdr_num--;
         }
     }
     //加入进程头
     cur->exec_phdr_list.length = i;
-    cur->exec_phdr_list.array = (void *)phdr_array;
+    cur->exec_phdr_list.array = (char *)phdr_array;
 
     //好像没有要干的了
     //程序的加载就交给缺页异常吧
@@ -172,6 +159,7 @@ static void setup_thread(uint32_t entry) {
         p++;
     }
     cur->brk = (cur->brk + PAGE_SIZE - 1) & 0xFFFFF000; //页对齐
+    cur->heap_bottom = cur->brk;
 
     //清除内存页面
     release_memory(cur, true);

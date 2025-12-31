@@ -10,7 +10,6 @@ switch_to:
     mov eax, [esp + 20] ; cur
     mov [eax], esp  ; cur->kstack   保存栈顶
 
-    xchg bx, bx
 
     mov eax, [esp + 24]
     mov esp, [eax]

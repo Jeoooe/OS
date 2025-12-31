@@ -27,6 +27,8 @@
 #define SIG_DFL ((void (*)(int))0)      //默认处理句柄
 #define SIG_IGN ((void (*)(int))1)      //忽略处理句柄
 
+struct task_block_t;
+
 //信号处理函数原型
 typedef void (*signal_handler_t)(int);
 
@@ -38,5 +40,8 @@ typedef struct signal_table_t {
 
 //signal系统调用, 指定信号处理函数
 signal_handler_t sys_signal(int signum, signal_handler_t handler);
+
+//给进程发送信号
+void send_sig(int signum, struct task_block_t *task);
 
 #endif

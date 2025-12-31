@@ -16,6 +16,11 @@ typedef struct signal_frame_t {
 extern void do_exit(int error_code);
 extern void sa_restorer(void);
 
+void send_sig(int signum, task_block_t *task) {
+    if (signum >= 0 && signum <= 32)
+        task->signals.pending |= 1 << (signum - 1);
+}
+
 signal_handler_t sys_signal(int signum, signal_handler_t handler) {
     //超出范围, 以及kill信号不允许修改
     if (signum < 1 || signum > 32 || signum == SIGKILL) 

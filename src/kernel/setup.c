@@ -9,6 +9,7 @@ extern void buffer_init();
 extern void root_setup();
 extern void keyboard_init();
 extern void tty_init();
+extern void console_init();
 
 static void test();
 extern void uninstall_all_char_device();
@@ -33,6 +34,8 @@ void sys_setup() {
     
 
     test();
+
+    console_init();     //这里可以清空屏幕
 }
 
 //test部分
@@ -42,7 +45,7 @@ void sys_setup() {
 #include <syscall.h>
 #include <thread.h>
 #include <device/dev.h>
-#include <console.h>
+
 
 char buf[1024] = {0};
 
@@ -59,5 +62,5 @@ static void test() {
     // write(fd, buf, 1024);
     // close(fd);
     // sync_dev(device_find(DEV_IDE_PART, 0)->dev);
-    console_init();
+    
 }
