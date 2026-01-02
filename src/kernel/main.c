@@ -73,17 +73,13 @@ void init() {
     (void) dup(0);                          //stderr
 
     int pid = fork();
+    int a = 0;
     if (pid) { //父进程
         int status;
         int err = waitpid(pid, &status, 0);
-        err+= 1;
-        // goto aa;
-        // putch('H');
     } else {
         execve("hello", NULL, NULL);
     }
-aa:
-    int a = 0;
     while (1) {
         a++;
     }

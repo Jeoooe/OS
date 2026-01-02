@@ -316,6 +316,7 @@ void release_memory(task_block_t* task, bool preserve_pd) {
 /*  
     给任务复制页表, 用于fork()
     要在exit的时候释放
+    26.1.1改进到只复制页目录
 */
 void copy_page_table(task_block_t* to) {
     uint32_t *new_page_dir = (uint32_t*)get_kpages(1);
@@ -326,57 +327,58 @@ void copy_page_table(task_block_t* to) {
     //在内核虚拟地址范围内不共享
     //即 [0, KERNEL_TOP]
     //刚好是 KERNEL_SHARED_PDE 内
-    //改完之后可能存在问题, 即0x0地址可能会存在?
-    memcpy(new_page_dir, cur_page_dir, KERNEL_SHARED_PDE * 4);  //复制内核虚拟地址的页目录项
-    for (int i = KERNEL_SHARED_PDE;i < 1023;i++) {   //遍历页目录项
-        uint32_t* pde = &cur_page_dir[i];
-        if (*pde == 0) continue;
-        //存在页目录项
-        uint32_t *page_table = (uint32_t*)(0xFFC00000 | (i << 12));
-        //设置只读, 物理内存引用+1
-        //这里只是设置物理映射
-        for (int j = 0;j < 1024;j++) {   //遍历页表项
-            uint32_t *pte = &page_table[j];
-            if (*pte == 0) continue;
-            *pte &= ~(0b10);    //置为只读
-            memory_map[PADDR_TO_INDEX(*pte & 0xFFFFF000)]++;
+    for (int i = KERNEL_SHARED_PDE;i < 1023;i++) {
+        if (cur_page_dir[i] & 1) {  //页目录项必须存在
+            cur_page_dir[i] &= ~0b10;   //页目录项置为只读
+            memory_map[PADDR_TO_INDEX(cur_page_dir[i] & 0xFFFFF000)]++;  //页表物理内存映射+1
         }
-        //这里开始复制整个页表的内容
-        //复制页表
-        uint32_t paddr = get_free_page();
-        //利用第0页
-        uint32_t *tmp_page_entry = (uint32_t*)0xFFC00000;
-        *tmp_page_entry = paddr | 0b111;
-        flush_tlb(0);
-        memcpy((void*)0, page_table, PAGE_SIZE);
-        *tmp_page_entry = 0;
-        flush_tlb(0);
-        //设置页目录项
-        new_page_dir[i] = paddr | 0b111;
     }
+    memcpy(new_page_dir, cur_page_dir, 1023 * 4);  //复制整个页目录
     to->pd_addr = vaddr_to_paddr((uint32_t)new_page_dir);
-}
-
-static inline uint32_t get_cr2() {
-    register uint32_t res;
-    asm("movl %%cr2, %0":"=r"(res));
-    return res;
 }
 
 //写时复制实现
 //目前仅共享物理页框, 因此只复制页框
+//TODO从页目录的写时复制
 static void copy_on_write(task_block_t* cur_task, uint32_t vaddr) {
     vaddr &= 0xFFFFF000;    //需要是页开头
 
     uint32_t paddr = vaddr_to_paddr(vaddr);
     uint32_t index = PADDR_TO_INDEX(paddr);
     uint32_t *pte = (uint32_t*)PTE_VADDR(vaddr);
+    uint32_t *pde = (uint32_t*)PDE_VADDR(vaddr);
 
     assert(memory_map[index] > 0);
     assert(!get_interrupt_state()); //最好是关中断吧
 
+    //这里检查页目录项是否是共享. 理论上, 如果是嵌套复制一个页表, 这里对应的应该是页目录本身, 不会进入分支
+    if (!(*pde & 0b10)) {
+        //页目录项不可写, 说明页表也是共享的
+        uint32_t i = PADDR_TO_INDEX(*pde & 0xFFFFF000);
+        *pde |= 0b10;   //RW位置1, 这里可能要先置可写才能对该页表进行操作
+        //检查是否在共享
+        if (memory_map[i] > 1) {    
+            uint32_t *page_table = (uint32_t *)(0xFFC00000 | ((vaddr >> 10) & ~0xFFF));
+            flush_tlb(page_table);
+            //先把这个页表的所有页框设置为只读, 即共享页
+            for (int i = 0;i < 1024;i++) {
+                if (page_table[i] & 1) {
+                    page_table[i] &= ~0b10; //置为只读
+                    //然后要给物理内存加引用数
+                    memory_map[PADDR_TO_INDEX(page_table[i] & 0xFFFFF000)]++;
+                }
+            }
+            //然后复制页表
+            copy_on_write(cur_task, (uint32_t)page_table);
+            //这里不需要-1, copy on write已经去掉映射了
+            // memory_map[i]--;
+        }
+        //这里复制完页表之后可能要刷新一下地址
+        flush_tlb(pte);
+    }
+
     if (memory_map[index] > 1) {   //如果有任务在共享
-        uint32_t paddr =get_free_page();
+        paddr =get_free_page();
         uint32_t *tmp_pte = (uint32_t*)0xFFC00000;
         //然后复制一个页框
         *tmp_pte = paddr | 7;
@@ -498,6 +500,12 @@ static bool check_can_write(uint32_t vaddr, task_block_t *task) {
     return true;
 }
 
+static inline uint32_t get_cr2() {
+    register uint32_t res;
+    asm("movl %%cr2, %0":"=r"(res));
+    return res;
+}
+
 // 缺页异常
 void page_fault(uint8_t vector, 
     uint32_t edi, uint32_t esi, uint32_t ebp, uint32_t esp, 
@@ -536,6 +544,7 @@ void page_fault(uint8_t vector,
         }
         //用户执行文件时候不存在页, 下面进行按需加载
         load_segment(vaddr, task);
+        return;
     }
 
     //写访问异常
